@@ -1,0 +1,329 @@
+請幫我設計一套 mobile-first 的創作者委託平台 UI，產品名稱為 Fulfill。
+這是一個讓「委託方」與「創作者」進行作品委託、溝通、下單、追蹤訂單與管理作品集的平台。
+
+整體風格請做成：
+
+深色系、精緻、年輕、偏設計社群感
+
+視覺方向介於 Behance / Instagram / commission marketplace
+
+使用 glassmorphism + soft gradient accent
+
+主色調為：
+
+背景：#0A0A0F
+
+卡片底：半透明深灰 / 黑
+
+品牌色：violet / fuchsia / cyan
+
+視覺語言：
+
+大圓角卡片
+
+柔和陰影
+
+半透明描邊
+
+清楚的資訊層級
+
+現代感 icon
+
+字體風格：
+
+乾淨、現代、偏 Inter / Noto Sans TC 類型
+
+版面尺寸：
+
+手機 frame 為 390 x 844
+
+請使用 Auto Layout
+
+請建立可重複元件與一致的 spacing / typography / color styles
+
+請優先產出 可編輯的 mobile UI screens
+
+請設計以下頁面：
+
+1. Onboarding / Register
+
+手機註冊與初始設定頁，內容包含：
+
+App 名稱：Fulfill
+
+標題：創作者委託平台
+
+使用者身份切換：
+
+委託方
+
+創作者
+
+年齡區間欄位
+
+感興趣藝術品類型 tag 選擇：
+
+油畫
+
+刺青
+
+雕塑
+
+插畫
+
+平面設計
+
+其他
+
+上傳頭像 / 作品縮圖區塊
+
+CTA 按鈕：「完成註冊並進入平台」
+請做成有品牌感的 onboarding screen，簡潔但有未來感。
+
+2. Home / Discover
+
+首頁是探索與推薦頁，包含：
+
+Header：頁面標題、通知 icon、menu icon
+
+Search bar：搜尋創作者、作品風格、關鍵字
+
+Filter button
+
+推薦 tag：
+
+熱門推薦
+
+個人化推薦
+
+角色委託
+
+品牌視覺
+
+客製刺青
+
+校園創作者
+
+靈感探索區：以不規則但有秩序的卡片 / bubble cards 呈現
+
+卡片大小有大中小變化
+
+每張卡片包含 tag、標題、簡短描述
+
+主題像是：
+
+霧面藍銀角色設計
+
+Y2K 專輯封面
+
+極簡刺青線稿
+
+手作雕塑質感
+
+展覽海報版型
+
+夢核插畫色票
+
+推薦創作者卡片區：
+
+創作者頭像
+
+名稱
+
+類別
+
+評分
+
+起始價格
+
+狀態 badge（Open for Commission / Limited Slot / Fast Reply）
+
+CTA：
+
+看作品集
+
+一鍵下單
+請讓首頁具有「靈感探索 + 下單轉換」雙重目的。
+
+3. Create Post
+
+建立委託需求頁，風格像 Instagram 發文結合委託表單。
+包含：
+
+頁面標題：新增 / Post
+
+圖片拖曳上傳區
+
+標題輸入欄
+
+多行需求描述欄位
+
+預算欄位
+
+希望交付日期欄位
+
+主按鈕：「發佈需求」
+
+下方或側邊有 3 步驟說明卡片：
+
+選照片 / 參考圖
+
+打內文與委託條件
+
+Post 後進入聊天與訂單
+請把這頁做得很清楚，讓使用者知道這不是一般貼文，而是可進入委託流程的需求單。
+
+4. Orders
+
+訂單追蹤頁，包含：
+
+Header：訂單 / Order Flow
+
+月曆或時間軸模組
+
+訂單進度節點：
+
+下單
+
+保證金確認
+
+製作中
+
+申請退款
+
+撥款
+
+到帳
+
+三個摘要狀態卡：
+
+訂單狀態
+
+平台託管
+
+退款流程
+
+我的訂單列表：
+
+訂單標題
+
+使用者雙方名稱
+
+狀態 badge
+
+due date
+請讓頁面有「金融安全感 + 訂單清晰度」。
+
+5. Chat
+
+委託聊天室頁，包含：
+
+對話列表
+
+對話主畫面
+
+聊天對象資訊列
+
+在線狀態
+
+左右聊天泡泡
+
+輸入框與送出按鈕
+
+可預留插入作品預覽、訂單節點卡片、修訂紀錄的區塊
+聊天語氣是委託討論，不是一般社群聊天。
+請讓畫面看起來專業、乾淨、容易閱讀。
+
+6. Profile
+
+個人頁面，包含：
+
+大頭像
+
+使用者名稱
+
+個人簡介
+
+統計 badges：
+
+收藏數
+
+進行中委託
+
+已完成交易
+
+快捷功能按鈕：
+
+愛心
+
+收藏資料夾
+
+一鍵下單
+
+Tab 結構：
+
+作品集
+
+收藏
+
+分類資料夾
+
+作品集卡片 grid
+
+收藏 / 分類資料夾列表
+請讓 Profile 同時像社群個人頁與接案作品集頁。
+
+7. Bottom Navigation
+
+所有主要頁面底部都要有固定的 mobile bottom nav，包含：
+
+主頁
+
+新增
+
+聊天室
+
+訂單
+
+Profile
+請有 active / inactive 狀態，風格簡潔，與深色背景融合。
+
+8. Design System Requirements
+
+請一併建立基礎設計系統，至少包含：
+
+Color styles
+
+Typography styles
+
+Button component
+
+Input component
+
+Tag / Badge component
+
+Card component
+
+Bottom nav component
+
+Chat bubble component
+
+Artist card component
+
+Order card component
+
+9. Output Requirements
+
+請輸出：
+
+6 個以上 mobile frames
+
+統一命名的 components
+
+可編輯、可延展的 Figma UI
+
+視覺成熟、可直接作為 MVP 設計基礎
+
+不要做成遊戲風、不要過度卡通
+
+保持設計感、現代感、創作社群感、可商業化
