@@ -11,6 +11,7 @@ import { LoginPage } from "./pages/LoginPage";
 import { OnboardingPage } from "./pages/OnboardingPage";
 import { ForgotPasswordPage } from "./pages/ForgotPasswordPage";
 import { ResetPasswordPage } from "./pages/ResetPasswordPage";
+import { WelcomePage } from "./pages/WelcomePage";
 
 export const router = createBrowserRouter([
   {
@@ -24,6 +25,7 @@ export const router = createBrowserRouter([
       { path: "orders", Component: OrdersPage },
       { path: "profile", Component: ProfilePage },
       { path: "register", Component: RegisterPage },
+      { path: "welcome", Component: WelcomePage },
       { path: "login", Component: LoginPage },
       { path: "forgot-password", Component: ForgotPasswordPage },
       { path: "reset-password", Component: ResetPasswordPage },

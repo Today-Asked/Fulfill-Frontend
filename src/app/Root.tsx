@@ -8,7 +8,7 @@ export function Root() {
   const { user, loading, profileChecked, needsOnboarding } = useAuth();
 
   const isChatRoom    = location.pathname.startsWith("/chat/");
-  const isAuthPage    = ["/login", "/register", "/forgot-password"].includes(location.pathname);
+  const isAuthPage    = ["/login", "/register", "/forgot-password", "/welcome"].includes(location.pathname);
   const isOnboarding  = location.pathname === "/onboarding";
   const isResetPassword = location.pathname === "/reset-password";
 
@@ -18,10 +18,10 @@ export function Root() {
   // ── /reset-password：不做任何跳轉守衛，讓頁面自己處理 token / error ──
   if (isResetPassword) return <Frame isChatRoom={false} isAuthPage={false} isOnboarding={false}><Outlet /></Frame>;
 
-  // ── 未登入 ──────────────────────────────────────────────────────────
-  if (!user && !isAuthPage) return <Navigate to="/login" replace />;
+  // ── 未登入 → 歡迎頁 ─────────────────────────────────────────────────
+  if (!user && !isAuthPage) return <Navigate to="/welcome" replace />;
 
-  // ── 已登入 + auth 頁面 → 首頁 ───────────────────────────────────────
+  // ── 已登入 + auth/welcome 頁面 → 首頁 ───────────────────────────────
   if (user && isAuthPage) return <Navigate to="/" replace />;
 
   // ── 已登入，等 profile 檢查 ──────────────────────────────────────────
