@@ -1,7 +1,0 @@
-{
-  "name": "fulfill-frontend",
-  "compatibility_date": "2026-04-20",
-  "assets": {
-    "directory": "./dist"
-  }
-}
