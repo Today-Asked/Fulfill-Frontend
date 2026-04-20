@@ -1,1 +1,5 @@
 node_modules
+
+# env files（含 key，不可上傳）
+.env
+.env.*

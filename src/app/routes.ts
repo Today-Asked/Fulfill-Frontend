@@ -6,6 +6,11 @@ import { ChatRoomPage } from "./pages/ChatRoomPage";
 import { CreatePage } from "./pages/CreatePage";
 import { OrdersPage } from "./pages/OrdersPage";
 import { ProfilePage } from "./pages/ProfilePage";
+import { RegisterPage } from "./pages/RegisterPage";
+import { LoginPage } from "./pages/LoginPage";
+import { OnboardingPage } from "./pages/OnboardingPage";
+import { ForgotPasswordPage } from "./pages/ForgotPasswordPage";
+import { ResetPasswordPage } from "./pages/ResetPasswordPage";
 
 export const router = createBrowserRouter([
   {
@@ -18,6 +23,11 @@ export const router = createBrowserRouter([
       { path: "create", Component: CreatePage },
       { path: "orders", Component: OrdersPage },
       { path: "profile", Component: ProfilePage },
+      { path: "register", Component: RegisterPage },
+      { path: "login", Component: LoginPage },
+      { path: "forgot-password", Component: ForgotPasswordPage },
+      { path: "reset-password", Component: ResetPasswordPage },
+      { path: "onboarding", Component: OnboardingPage },
     ],
   },
 ]);
