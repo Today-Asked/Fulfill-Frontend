@@ -5,23 +5,21 @@ import { supabase } from "../../lib/supabase";
 import { useAuth } from "../../contexts/AuthContext";
 
 const navItems = [
-  { icon: Home, label: "主頁", path: "/" },
-  { icon: Send, label: "聊天", path: "/chat" },
-  { icon: Plus, label: "新增", path: "/create" },
+  { icon: Home,          label: "主頁", path: "/" },
+  { icon: Send,          label: "聊天", path: "/chat" },
+  { icon: Plus,          label: "新增", path: "/create" },
   { icon: ClipboardList, label: "訂單", path: "/orders" },
-  { icon: UserCircle2, label: "我", path: "/profile" },
+  { icon: UserCircle2,   label: "我",   path: "/profile" },
 ];
 
 export function BottomNav() {
-  const navigate = useNavigate();
-  const location = useLocation();
-  const { user } = useAuth();
+  const navigate  = useNavigate();
+  const location  = useLocation();
+  const { user }  = useAuth();
   const [hasUnread, setHasUnread] = useState(false);
 
-  // pathname 變動時重新查未讀數（例如從聊天室返回時）
   useEffect(() => {
     if (!user) { setHasUnread(false); return; }
-
     supabase
       .from("messages")
       .select("*", { count: "exact", head: true })
@@ -32,27 +30,24 @@ export function BottomNav() {
   }, [user, location.pathname]);
 
   return (
-    <div className="absolute bottom-0 left-0 right-0 pb-6 pt-3 px-5 z-50 pointer-events-none">
-      <div className="flex justify-between items-center bg-[#111115]/80 backdrop-blur-2xl border border-white/8 rounded-full px-4 py-3 shadow-[0_8px_32px_0_rgba(0,0,0,0.5)] pointer-events-auto">
+    <div className="absolute bottom-0 left-0 right-0 pb-6 pt-2 px-6 z-50 pointer-events-none">
+      <div className="flex justify-between items-center bg-black/70 backdrop-blur-2xl border border-white/10 rounded-full px-5 py-3 pointer-events-auto">
         {navItems.map((item) => {
           const isActive =
             item.path === "/"
               ? location.pathname === "/"
               : location.pathname.startsWith(item.path);
           const isCreate = item.path === "/create";
-          const isChat = item.path === "/chat";
+          const isChat   = item.path === "/chat";
 
           if (isCreate) {
             return (
               <button
                 key={item.path}
                 onClick={() => navigate(item.path)}
-                className="relative -mt-8 group"
+                className="w-11 h-11 rounded-full bg-[#f9a8d4] flex items-center justify-center shadow-md shadow-pink-400/25 hover:bg-[#f472b6] active:scale-95 transition-all -mt-6"
               >
-                <div className="absolute inset-0 bg-fuchsia-500/50 rounded-full blur-md group-hover:bg-fuchsia-500/70 transition-colors" />
-                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-violet-500 via-fuchsia-500 to-cyan-400 flex items-center justify-center border-[3px] border-[#0a0a0f] relative z-10 text-white transform group-hover:scale-105 transition-transform">
-                  <Plus size={22} strokeWidth={2.5} />
-                </div>
+                <Plus size={20} strokeWidth={2.5} className="text-black" />
               </button>
             );
           }
@@ -62,17 +57,17 @@ export function BottomNav() {
               key={item.path}
               onClick={() => navigate(item.path)}
               className={`flex flex-col items-center gap-0.5 transition-all ${
-                isActive ? "text-white" : "text-gray-500 hover:text-gray-300"
+                isActive ? "text-white" : "text-white/35 hover:text-white/60"
               }`}
             >
               <div className="relative">
                 <item.icon size={22} strokeWidth={isActive ? 2 : 1.5} />
                 {isChat && hasUnread && !isActive && (
-                  <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-fuchsia-500 border border-[#111115]" />
+                  <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-[#f9a8d4] border border-black" />
                 )}
               </div>
               {isActive && (
-                <span className="w-1 h-1 rounded-full bg-gradient-to-r from-fuchsia-400 to-cyan-400" />
+                <span className="w-1 h-1 rounded-full bg-[#f9a8d4]" />
               )}
             </button>
           );
