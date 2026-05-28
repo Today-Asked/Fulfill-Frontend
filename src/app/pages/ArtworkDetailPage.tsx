@@ -179,7 +179,10 @@ export function ArtworkDetailPage() {
 
         {/* Title + heart */}
         <div className="flex items-start justify-between gap-4 mb-2">
-          <h1 className="flex-1 text-center text-2xl font-bold italic text-white leading-snug">
+          <h1
+            className="flex-1 text-center text-3xl font-bold text-white leading-snug"
+            style={{ fontFamily: "'Playfair Display', serif" }}
+          >
             {artwork.title ?? "未命名作品"}
           </h1>
           <button
@@ -217,7 +220,10 @@ export function ArtworkDetailPage() {
         {/* Find more */}
         {moreArtworks.length > 0 && (
           <div>
-            <p className="text-white font-bold italic text-xl mb-4">Find more</p>
+            <p
+              className="text-white font-bold text-xl mb-4"
+              style={{ fontFamily: "'Playfair Display', serif" }}
+            >Find more</p>
             <div className="columns-2 gap-3">
               {moreArtworks.map((a) => (
                 <button
