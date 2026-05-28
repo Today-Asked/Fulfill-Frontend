@@ -1,6 +1,8 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router";
 import { Home, Send, Plus, ClipboardList, UserCircle2 } from "lucide-react";
+import { supabase } from "../../lib/supabase";
+import { useAuth } from "../../contexts/AuthContext";
 
 const navItems = [
   { icon: Home, label: "主頁", path: "/" },
@@ -13,6 +15,21 @@ const navItems = [
 export function BottomNav() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { user } = useAuth();
+  const [hasUnread, setHasUnread] = useState(false);
+
+  // pathname 變動時重新查未讀數（例如從聊天室返回時）
+  useEffect(() => {
+    if (!user) { setHasUnread(false); return; }
+
+    supabase
+      .from("messages")
+      .select("*", { count: "exact", head: true })
+      .neq("sender_id", user.id)
+      .is("read_at", null)
+      .is("deleted_at", null)
+      .then(({ count }) => setHasUnread((count ?? 0) > 0));
+  }, [user, location.pathname]);
 
   return (
     <div className="absolute bottom-0 left-0 right-0 pb-6 pt-3 px-5 z-50 pointer-events-none">
@@ -23,6 +40,7 @@ export function BottomNav() {
               ? location.pathname === "/"
               : location.pathname.startsWith(item.path);
           const isCreate = item.path === "/create";
+          const isChat = item.path === "/chat";
 
           if (isCreate) {
             return (
@@ -47,7 +65,12 @@ export function BottomNav() {
                 isActive ? "text-white" : "text-gray-500 hover:text-gray-300"
               }`}
             >
-              <item.icon size={22} strokeWidth={isActive ? 2 : 1.5} />
+              <div className="relative">
+                <item.icon size={22} strokeWidth={isActive ? 2 : 1.5} />
+                {isChat && hasUnread && !isActive && (
+                  <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-fuchsia-500 border border-[#111115]" />
+                )}
+              </div>
               {isActive && (
                 <span className="w-1 h-1 rounded-full bg-gradient-to-r from-fuchsia-400 to-cyan-400" />
               )}

@@ -3,6 +3,7 @@ import { useNavigate } from "react-router";
 import { Search, Bell, Heart, ChevronRight, ImageOff, X, Loader2 } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import { useAuth } from "../../contexts/AuthContext";
+import { getOrCreateConversation } from "../../lib/chat";
 
 const categories = ["熱門推薦", "個人化推薦", "角色委託", "品牌視覺", "客製刺青", "校園創作者"];
 
@@ -14,6 +15,7 @@ interface Artwork {
 
 interface Creator {
   id: number;
+  userId: string;
   username: string | null;
   name: string | null;
   bio: string | null;
@@ -88,7 +90,7 @@ export function HomePage() {
       // 4. 撈創作者（排除自己）
       let creatorQuery = supabase
         .from("artist_profiles")
-        .select("id, users:user_id(username, name, bio, avatar_url)")
+        .select("id, user_id, users:user_id(username, name, bio, avatar_url)")
         .order("created_at", { ascending: false })
         .limit(6);
       if (user) creatorQuery = creatorQuery.neq("user_id", user.id);
@@ -98,6 +100,7 @@ export function HomePage() {
         .filter((row: any) => row.users)
         .map((row: any) => ({
           id: row.id,
+          userId: row.user_id,
           username: row.users.username,
           name: row.users.name,
           bio: row.users.bio,
@@ -271,8 +274,16 @@ export function HomePage() {
                     )}
                   </div>
                 </div>
-                <button className="text-[10px] px-2.5 py-1 rounded-lg bg-white/8 border border-white/10 text-gray-200 hover:bg-white/14 transition-colors shrink-0 ml-2">
-                  委託
+                <button
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    if (!user) { navigate("/login"); return; }
+                    const convId = await getOrCreateConversation(user.id, creator.userId);
+                    if (convId) navigate(`/chat/${convId}`);
+                  }}
+                  className="text-[10px] px-2.5 py-1 rounded-lg bg-white/8 border border-white/10 text-gray-200 hover:bg-white/14 transition-colors shrink-0 ml-2"
+                >
+                  聊聊
                 </button>
               </div>
             ))}

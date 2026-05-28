@@ -1,51 +1,99 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
 import { Search, X } from "lucide-react";
+import { supabase } from "../../lib/supabase";
+import { useAuth } from "../../contexts/AuthContext";
+import { formatChatTime, getLastMessageText } from "../../lib/chat";
 
-const conversations = [
-  {
-    id: "eavan",
-    name: "EAVAN",
-    lastMessage: "可，直接填委託單就好 記得選急件加價",
-    time: "12:34",
-    unread: 2,
-    isPaid: true,
-    avatar: "https://images.unsplash.com/photo-1730295004949-d3f6c773aedd?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxhcnRpc3QlMjBwb3J0cmFpdCUyMHNtaWxpbmd8ZW58MXx8fHwxNzczMTY2NjQyfDA&ixlib=rb-4.1.0&q=80&w=200",
-  },
-  {
-    id: "pop",
-    name: "popOpooP",
-    lastMessage: "好的！我最快下週交稿",
-    time: "昨天",
-    unread: 0,
-    isPaid: false,
-    avatar: "https://images.unsplash.com/photo-1595745688820-1a8bca9dd00f?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxjcmVhdGl2ZSUyMHBlcnNvbiUyMHBvcnRyYWl0fGVufDF8fHx8MTc3MzE0NTMzOHww&ixlib=rb-4.1.0&q=80&w=200",
-  },
-  {
-    id: "eavan2",
-    name: "EAVAN",
-    lastMessage: "您好，我想委託海報",
-    time: "週一",
-    unread: 0,
-    isPaid: true,
-    avatar: "https://images.unsplash.com/photo-1730295004949-d3f6c773aedd?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxhcnRpc3QlMjBwb3J0cmFpdCUyMHNtaWxpbmd8ZW58MXx8fHwxNzczMTY2NjQyfDA&ixlib=rb-4.1.0&q=80&w=200",
-  },
-  {
-    id: "pop2",
-    name: "popOpooP",
-    lastMessage: "請問有接角色立繪嗎？",
-    time: "3/2",
-    unread: 0,
-    isPaid: false,
-    avatar: "https://images.unsplash.com/photo-1595745688820-1a8bca9dd00f?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxjcmVhdGl2ZSUyMHBlcnNvbiUyMHBvcnRyYWl0fGVufDF8fHx8MTc3MzE0NTMzOHww&ixlib=rb-4.1.0&q=80&w=200",
-  },
-];
+interface ConvItem {
+  id: number;
+  name: string;
+  avatar: string | null;
+  lastMessage: string;
+  time: string;
+  unread: number;
+}
 
 export function ChatListPage() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
+  const [convs, setConvs] = useState<ConvItem[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const filtered = conversations.filter((c) =>
+  useEffect(() => {
+    if (!user) return;
+
+    async function load() {
+      const { data: rows } = await supabase
+        .from("conversations")
+        .select(`
+          id, last_message_at,
+          usera:usera_id(id, username, name, avatar_url),
+          userb:userb_id(id, username, name, avatar_url)
+        `)
+        .or(`usera_id.eq.${user!.id},userb_id.eq.${user!.id}`)
+        .order("last_message_at", { ascending: false, nullsFirst: false });
+
+      if (!rows?.length) {
+        setLoading(false);
+        return;
+      }
+
+      const ids = rows.map((r: any) => r.id as number);
+
+      // Batch: 最新幾則訊息（用來取得每個對話的最後一則）
+      const { data: msgs } = await supabase
+        .from("messages")
+        .select("chat_id, content, type, created_at")
+        .in("chat_id", ids)
+        .is("deleted_at", null)
+        .order("created_at", { ascending: false })
+        .limit(ids.length * 5);
+
+      // Batch: 未讀數（sender 不是自己 且 read_at 為 null）
+      const { data: unreads } = await supabase
+        .from("messages")
+        .select("chat_id")
+        .in("chat_id", ids)
+        .neq("sender_id", user!.id)
+        .is("read_at", null)
+        .is("deleted_at", null);
+
+      // 每個 chat 的最後一則訊息文字
+      const lastMsgMap: Record<number, string> = {};
+      (msgs ?? []).forEach((m: any) => {
+        if (lastMsgMap[m.chat_id] === undefined) {
+          lastMsgMap[m.chat_id] = getLastMessageText(m.content, m.type);
+        }
+      });
+
+      // 每個 chat 的未讀數
+      const unreadMap: Record<number, number> = {};
+      (unreads ?? []).forEach((m: any) => {
+        unreadMap[m.chat_id] = (unreadMap[m.chat_id] ?? 0) + 1;
+      });
+
+      setConvs(
+        rows.map((r: any) => {
+          const other = r.usera.id === user!.id ? r.userb : r.usera;
+          return {
+            id: r.id,
+            name: other.name || other.username || "用戶",
+            avatar: other.avatar_url,
+            lastMessage: lastMsgMap[r.id] ?? "",
+            time: formatChatTime(r.last_message_at),
+            unread: unreadMap[r.id] ?? 0,
+          };
+        })
+      );
+      setLoading(false);
+    }
+
+    load();
+  }, [user]);
+
+  const filtered = convs.filter((c) =>
     c.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
@@ -75,45 +123,48 @@ export function ChatListPage() {
 
       {/* Conversation List */}
       <div className="flex-1 overflow-y-auto [&::-webkit-scrollbar]:hidden pb-28">
-        {filtered.map((conv) => (
-          <button
-            key={conv.id}
-            onClick={() => navigate(`/chat/${conv.id}`)}
-            className="w-full flex items-center gap-4 px-5 py-4 hover:bg-white/4 transition-colors text-left"
-          >
-            {/* Avatar */}
-            <div className="relative flex-shrink-0">
-              <div className="w-14 h-14 rounded-full border-2 border-white/15 overflow-hidden">
-                <img
-                  src={conv.avatar}
-                  alt={conv.name}
-                  className="w-full h-full object-cover"
-                />
+        {loading ? (
+          <p className="text-center text-gray-600 text-sm mt-8">載入中...</p>
+        ) : filtered.length === 0 ? (
+          <p className="text-center text-gray-600 text-sm mt-8">還沒有對話</p>
+        ) : (
+          filtered.map((conv) => (
+            <button
+              key={conv.id}
+              onClick={() => navigate(`/chat/${conv.id}`)}
+              className="w-full flex items-center gap-4 px-5 py-4 hover:bg-white/4 transition-colors text-left"
+            >
+              {/* Avatar */}
+              <div className="relative flex-shrink-0">
+                <div className="w-14 h-14 rounded-full border-2 border-white/15 overflow-hidden bg-white/10 flex items-center justify-center">
+                  {conv.avatar ? (
+                    <img src={conv.avatar} alt={conv.name} className="w-full h-full object-cover" />
+                  ) : (
+                    <span className="text-white/40 text-xl font-medium">
+                      {conv.name[0]?.toUpperCase()}
+                    </span>
+                  )}
+                </div>
               </div>
-              {conv.isPaid && (
-                <div className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full bg-white flex items-center justify-center border-2 border-black">
-                  <span className="text-[8px] font-bold text-gray-800">$</span>
+
+              {/* Info */}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-white text-sm font-medium">{conv.name}</span>
+                  <span className="text-gray-600 text-[10px]">{conv.time}</span>
+                </div>
+                <p className="text-gray-500 text-xs truncate">{conv.lastMessage}</p>
+              </div>
+
+              {/* Unread badge */}
+              {conv.unread > 0 && (
+                <div className="flex-shrink-0 w-5 h-5 rounded-full bg-white flex items-center justify-center">
+                  <span className="text-[10px] font-bold text-black">{conv.unread}</span>
                 </div>
               )}
-            </div>
-
-            {/* Info */}
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-white text-sm font-medium">{conv.name}</span>
-                <span className="text-gray-600 text-[10px]">{conv.time}</span>
-              </div>
-              <p className="text-gray-500 text-xs truncate">{conv.lastMessage}</p>
-            </div>
-
-            {/* Unread badge */}
-            {conv.unread > 0 && (
-              <div className="flex-shrink-0 w-5 h-5 rounded-full bg-white flex items-center justify-center">
-                <span className="text-[10px] font-bold text-black">{conv.unread}</span>
-              </div>
-            )}
-          </button>
-        ))}
+            </button>
+          ))
+        )}
       </div>
     </div>
   );

@@ -2,8 +2,11 @@ import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router";
 import { ArrowLeft, Heart, ImageOff } from "lucide-react";
 import { supabase } from "../../lib/supabase";
+import { useAuth } from "../../contexts/AuthContext";
+import { getOrCreateConversation } from "../../lib/chat";
 
 interface CreatorProfile {
+  userId: string;
   username: string | null;
   name: string | null;
   bio: string | null;
@@ -21,6 +24,7 @@ interface Artwork {
 export function CreatorProfilePage() {
   const { id: usernameParam } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   const [profile, setProfile] = useState<CreatorProfile | null>(null);
   const [artworks, setArtworks] = useState<Artwork[]>([]);
@@ -59,6 +63,7 @@ export function CreatorProfilePage() {
       }
 
       setProfile({
+        userId: user.id,
         username: user.username,
         name: user.name,
         bio: user.bio,
@@ -148,10 +153,14 @@ export function CreatorProfilePage() {
         {/* Actions */}
         <div className="flex gap-3">
           <button
-            onClick={() => navigate("/create")}
+            onClick={async () => {
+              if (!user) { navigate("/login"); return; }
+              const convId = await getOrCreateConversation(user.id, profile.userId);
+              if (convId) navigate(`/chat/${convId}`);
+            }}
             className="flex-1 py-3 rounded-xl bg-gradient-to-r from-pink-400/80 via-fuchsia-400/70 to-pink-300/80 backdrop-blur-xl text-white font-semibold hover:opacity-90 transition-opacity shadow-[inset_0_2px_8px_rgba(255,255,255,0.4),0_4px_16px_rgba(236,72,153,0.5)] border border-white/30"
           >
-            委託創作
+            聊聊
           </button>
           <button className="w-12 h-12 rounded-xl bg-white/10 backdrop-blur-xl border border-white/20 flex items-center justify-center hover:bg-white/15 transition-all">
             <Heart size={20} className="text-white" />
