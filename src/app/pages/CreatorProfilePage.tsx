@@ -84,7 +84,7 @@ export function CreatorProfilePage() {
 
   if (loading) {
     return (
-      <div className="h-full bg-black overflow-y-auto pb-28 [&::-webkit-scrollbar]:hidden animate-pulse">
+      <div className="h-full bg-[#0a0a0f] overflow-y-auto pb-28 [&::-webkit-scrollbar]:hidden animate-pulse">
         <div className="px-6 pt-12 pb-6">
           <div className="w-10 h-10 rounded-full bg-white/8 mb-6" />
           <div className="flex items-center gap-4 mb-6">
@@ -103,7 +103,7 @@ export function CreatorProfilePage() {
 
   if (notFound || !profile) {
     return (
-      <div className="h-full bg-black flex flex-col items-center justify-center gap-4">
+      <div className="h-full bg-[#0a0a0f] flex flex-col items-center justify-center gap-4">
         <p className="text-gray-400 text-sm">找不到這位創作者</p>
         <button
           onClick={() => navigate(-1)}
@@ -116,7 +116,7 @@ export function CreatorProfilePage() {
   }
 
   return (
-    <div className="h-full overflow-y-auto pb-28 [&::-webkit-scrollbar]:hidden bg-black">
+    <div className="h-full overflow-y-auto pb-28 [&::-webkit-scrollbar]:hidden bg-[#0a0a0f]">
       {/* Header */}
       <div className="px-6 pt-12 pb-6">
         <button
