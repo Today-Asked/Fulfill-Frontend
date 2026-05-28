@@ -30,6 +30,12 @@ interface Artwork {
   status: "published" | "archived" | "draft";
 }
 
+interface LikedArtwork {
+  id: number;
+  title: string | null;
+  cover_image_url: string | null;
+}
+
 export function ProfilePage() {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
@@ -37,6 +43,7 @@ export function ProfilePage() {
   const [profile, setProfile]           = useState<UserProfile | null>(null);
   const [artist, setArtist]             = useState<ArtistProfile | null>(null);
   const [artworks, setArtworks]         = useState<Artwork[]>([]);
+  const [likedArtworks, setLikedArtworks] = useState<LikedArtwork[]>([]);
   const [activeTab, setActiveTab]       = useState(0);
   const [showUpload, setShowUpload]     = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -70,6 +77,23 @@ export function ProfilePage() {
     supabase.from("artist_profiles").select("id, is_verified")
       .eq("user_id", user.id).maybeSingle()
       .then(({ data }) => { setArtist(data); });
+
+    // 撈喜愛的作品
+    supabase
+      .from("likes")
+      .select("artwork_id, artworks(id, title, cover_image_url)")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
+      .then(({ data }) => {
+        const mapped: LikedArtwork[] = (data ?? [])
+          .filter((l: any) => l.artworks)
+          .map((l: any) => ({
+            id: l.artworks.id,
+            title: l.artworks.title,
+            cover_image_url: l.artworks.cover_image_url,
+          }));
+        setLikedArtworks(mapped);
+      });
   }, [user]);
 
   useEffect(() => {
@@ -254,7 +278,7 @@ export function ProfilePage() {
               <p className="text-gray-600 text-[9px]">收藏</p>
             </div>
             <div className="text-center">
-              <p className="text-white text-sm font-semibold">0</p>
+              <p className="text-white text-sm font-semibold">{likedArtworks.length}</p>
               <p className="text-gray-600 text-[9px]">喜愛</p>
             </div>
           </div>
@@ -384,12 +408,45 @@ export function ProfilePage() {
 
         {/* ── 喜愛 ── */}
         {((!artist && activeTab === 1) || (artist && activeTab === 2)) && (
-          <div className="flex flex-col items-center justify-center py-16 gap-3">
-            <div className="w-20 h-20 rounded-full bg-white/8 flex items-center justify-center">
-              <Heart size={32} className="text-gray-500" />
+          likedArtworks.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 gap-3">
+              <div className="w-20 h-20 rounded-full bg-white/8 flex items-center justify-center">
+                <Heart size={32} className="text-gray-500" />
+              </div>
+              <p className="text-gray-500 text-sm">尚無喜愛的作品</p>
             </div>
-            <p className="text-gray-500 text-sm">尚無喜愛的作品</p>
-          </div>
+          ) : (
+            <div className="px-5">
+              <span className="text-gray-500 text-xs block mb-2">{likedArtworks.length} 件喜愛</span>
+              <div className="grid grid-cols-2 gap-2 mb-4">
+                {likedArtworks.map((artwork) => (
+                  <button
+                    key={artwork.id}
+                    onClick={() => navigate(`/artwork/${artwork.id}`)}
+                    className="aspect-square rounded-xl overflow-hidden relative group bg-white/5"
+                  >
+                    {artwork.cover_image_url ? (
+                      <img
+                        src={artwork.cover_image_url}
+                        alt={artwork.title ?? ""}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <Heart size={20} className="text-gray-600" />
+                      </div>
+                    )}
+                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all" />
+                    {artwork.title && (
+                      <div className="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-black/70 to-transparent opacity-0 group-hover:opacity-100 transition-all">
+                        <p className="text-white text-xs font-medium truncate">{artwork.title}</p>
+                      </div>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )
         )}
 
         {/* Delete account */}
