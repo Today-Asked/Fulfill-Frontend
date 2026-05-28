@@ -5,7 +5,15 @@ import { supabase } from "../../lib/supabase";
 import { useAuth } from "../../contexts/AuthContext";
 import { getOrCreateConversation } from "../../lib/chat";
 
-const categories = ["熱門推薦", "個人化推薦", "角色委託", "品牌視覺", "客製刺青", "校園創作者"];
+// Category → DB tag name (null = special mode, not tag-filtered)
+const CATEGORY_CONFIG = [
+  { label: "熱門推薦",  tagName: null as string | null },
+  { label: "個人化推薦", tagName: null as string | null },
+  { label: "角色設計",  tagName: "Character Design" },
+  { label: "品牌設計",  tagName: "Brand Design" },
+  { label: "插畫",     tagName: "Illustration" },
+  { label: "數位藝術",  tagName: "Digital Art" },
+];
 
 interface Artwork {
   id: number;
@@ -40,6 +48,9 @@ export function HomePage() {
   const [likes, setLikes]               = useState<Set<number>>(new Set());
   const [loadingArtworks, setLoadingArtworks] = useState(true);
   const [loadingCreators, setLoadingCreators] = useState(true);
+  // 自己的 artist_profile id（排除自己作品用）
+  const [myArtistId, setMyArtistId]     = useState<number | null>(null);
+  const [myArtistReady, setMyArtistReady] = useState(false);
 
   // ── 搜尋 ───────────────────────────────────────────────────────────────
   const [showSearch, setShowSearch]         = useState(false);
@@ -48,46 +59,25 @@ export function HomePage() {
   const [searchCreators, setSearchCreators] = useState<SearchCreator[]>([]);
   const [searching, setSearching]           = useState(false);
 
-  // ── 載入主頁資料 ────────────────────────────────────────────────────────
+  // ── Effect 1: 拿 myArtistId + 創作者（只在 user 改變時執行）──────────────
   useEffect(() => {
+    setMyArtistReady(false);
     (async () => {
-      // 1. 先拿自己的 artist_profile id（用來排除自己作品）
-      let myArtistId: number | null = null;
+      // 自己的 artist_profile id
+      let aid: number | null = null;
       if (user) {
         const { data: ap } = await supabase
           .from("artist_profiles")
           .select("id")
           .eq("user_id", user.id)
           .maybeSingle();
-        myArtistId = ap?.id ?? null;
+        aid = ap?.id ?? null;
       }
+      setMyArtistId(aid);
+      setMyArtistReady(true);
 
-      // 2. 撈作品（排除自己的）
-      let artworkQuery = supabase
-        .from("artworks")
-        .select("id, title, cover_image_url")
-        .eq("status", "published")
-        .is("deleted_at", null)
-        .order("created_at", { ascending: false })
-        .limit(6);
-      if (myArtistId !== null) artworkQuery = artworkQuery.neq("artist_id", myArtistId);
-
-      const { data: artworkData } = await artworkQuery;
-      const loaded = artworkData ?? [];
-      setArtworks(loaded);
-      setLoadingArtworks(false);
-
-      // 3. 撈已按讚
-      if (user && loaded.length > 0) {
-        const { data: likeData } = await supabase
-          .from("likes")
-          .select("artwork_id")
-          .eq("user_id", user.id)
-          .in("artwork_id", loaded.map((a) => a.id));
-        setLikes(new Set((likeData ?? []).map((l) => l.artwork_id)));
-      }
-
-      // 4. 撈創作者（排除自己）
+      // 撈推薦創作者（排除自己）
+      setLoadingCreators(true);
       let creatorQuery = supabase
         .from("artist_profiles")
         .select("id, user_id, users:user_id(username, name, bio, avatar_url)")
@@ -111,6 +101,114 @@ export function HomePage() {
       setLoadingCreators(false);
     })();
   }, [user]);
+
+  // ── Effect 2: 依分類撈作品（user / activeCat / myArtistReady 改變時執行）──
+  useEffect(() => {
+    if (!myArtistReady) return;
+
+    setLoadingArtworks(true);
+    setArtworks([]);
+    setLikes(new Set());
+
+    const cat = CATEGORY_CONFIG[activeCat];
+
+    async function fetchArtworks() {
+      let loaded: Artwork[] = [];
+
+      if (activeCat === 1) {
+        // 個人化推薦：顯示追蹤中創作者的作品
+        if (!user) {
+          setArtworks([]);
+          setLoadingArtworks(false);
+          return;
+        }
+        const { data: followData } = await supabase
+          .from("follows")
+          .select("following_id")
+          .eq("follower_id", user.id);
+        const followedIds = (followData ?? []).map((f: any) => f.following_id);
+
+        if (followedIds.length > 0) {
+          const { data: apData } = await supabase
+            .from("artist_profiles")
+            .select("id")
+            .in("user_id", followedIds);
+          const artistIds = (apData ?? []).map((ap: any) => ap.id);
+
+          if (artistIds.length > 0) {
+            let q = supabase
+              .from("artworks")
+              .select("id, title, cover_image_url")
+              .in("artist_id", artistIds)
+              .eq("status", "published")
+              .is("deleted_at", null)
+              .order("created_at", { ascending: false })
+              .limit(6);
+            if (myArtistId !== null) q = q.neq("artist_id", myArtistId);
+            const { data } = await q;
+            loaded = data ?? [];
+          }
+        }
+      } else if (cat.tagName) {
+        // 標籤分類
+        const { data: tagRow } = await supabase
+          .from("tags")
+          .select("id")
+          .eq("name", cat.tagName)
+          .maybeSingle();
+
+        if (tagRow?.id) {
+          const { data: atRows } = await supabase
+            .from("artwork_tags")
+            .select("artwork_id")
+            .eq("tag_id", tagRow.id)
+            .limit(30);
+
+          const ids = (atRows ?? []).map((r: any) => r.artwork_id);
+          if (ids.length > 0) {
+            let q = supabase
+              .from("artworks")
+              .select("id, title, cover_image_url")
+              .in("id", ids)
+              .eq("status", "published")
+              .is("deleted_at", null)
+              .order("created_at", { ascending: false })
+              .limit(6);
+            if (myArtistId !== null) q = q.neq("artist_id", myArtistId);
+            const { data } = await q;
+            loaded = data ?? [];
+          }
+        }
+      } else {
+        // 熱門推薦（預設）
+        let q = supabase
+          .from("artworks")
+          .select("id, title, cover_image_url")
+          .eq("status", "published")
+          .is("deleted_at", null)
+          .order("created_at", { ascending: false })
+          .limit(6);
+        if (myArtistId !== null) q = q.neq("artist_id", myArtistId);
+        const { data } = await q;
+        loaded = data ?? [];
+      }
+
+      setArtworks(loaded);
+      setLoadingArtworks(false);
+
+      // 撈已按讚
+      if (user && loaded.length > 0) {
+        const { data: likeData } = await supabase
+          .from("likes")
+          .select("artwork_id")
+          .eq("user_id", user.id)
+          .in("artwork_id", loaded.map((a) => a.id));
+        setLikes(new Set((likeData ?? []).map((l: any) => l.artwork_id)));
+      }
+    }
+
+    fetchArtworks();
+  }, [user, activeCat, myArtistReady, myArtistId]);
 
   // ── 按讚切換 ────────────────────────────────────────────────────────────
   async function handleToggleLike(artworkId: number, e: React.MouseEvent) {
@@ -189,9 +287,11 @@ export function HomePage() {
         >
           <Search size={18} className="text-gray-300" />
         </button>
-        <button className="w-9 h-9 rounded-full bg-white/5 border border-white/10 flex items-center justify-center relative hover:bg-white/10 transition-colors">
+        <button
+          onClick={() => navigate("/notifications")}
+          className="w-9 h-9 rounded-full bg-white/5 border border-white/10 flex items-center justify-center relative hover:bg-white/10 transition-colors"
+        >
           <Bell size={17} className="text-white" />
-          <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full border border-[#0a0a0f] bg-blue-400" />
         </button>
       </div>
 
@@ -199,7 +299,15 @@ export function HomePage() {
       {loadingArtworks ? (
         <BentoSkeleton />
       ) : artworks.length === 0 ? (
-        <BentoEmpty />
+        <BentoEmpty
+          message={
+            activeCat === 1
+              ? "追蹤創作者後，這裡會顯示他們的作品"
+              : CATEGORY_CONFIG[activeCat].tagName
+              ? `「${CATEGORY_CONFIG[activeCat].label}」分類尚無作品`
+              : "尚未有公開作品"
+          }
+        />
       ) : (
         <div className="px-3 mb-4">
           <div className="flex gap-2 mb-2">
@@ -224,9 +332,9 @@ export function HomePage() {
       {/* Category Tags */}
       <div className="pl-4 mb-6 overflow-x-auto [&::-webkit-scrollbar]:hidden">
         <div className="flex gap-2 pr-4 w-max">
-          {categories.map((cat, idx) => (
+          {CATEGORY_CONFIG.map((cat, idx) => (
             <button
-              key={cat}
+              key={cat.label}
               onClick={() => setActiveCat(idx)}
               className={`px-4 py-2 rounded-full text-xs font-medium whitespace-nowrap transition-all duration-200 ${
                 activeCat === idx
@@ -234,7 +342,7 @@ export function HomePage() {
                   : "bg-white/5 border border-white/10 text-gray-400 hover:text-white hover:bg-white/8"
               }`}
             >
-              {cat}
+              {cat.label}
             </button>
           ))}
         </div>
@@ -529,12 +637,11 @@ function BentoSkeleton() {
   );
 }
 
-function BentoEmpty() {
+function BentoEmpty({ message = "尚未有公開作品" }: { message?: string }) {
   return (
     <div className="mx-3 mb-4 rounded-[20px] border border-dashed border-white/10 px-6 py-14 flex flex-col items-center gap-2">
       <ImageOff size={28} className="text-gray-600" />
-      <p className="text-gray-400 text-sm">尚未有公開作品</p>
-      <p className="text-gray-600 text-xs">創作者發佈第一件作品後會出現在這裡</p>
+      <p className="text-gray-400 text-sm">{message}</p>
     </div>
   );
 }

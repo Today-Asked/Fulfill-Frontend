@@ -30,20 +30,22 @@ export function CreatorProfilePage() {
   const [artworks, setArtworks] = useState<Artwork[]>([]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [isFollowing, setIsFollowing] = useState(false);
+  const [followerCount, setFollowerCount] = useState(0);
 
   useEffect(() => {
     if (!usernameParam) return;
 
     (async () => {
       // 1. username 找 user
-      const { data: user } = await supabase
+      const { data: user_data } = await supabase
         .from("users")
         .select("id, username, name, bio, avatar_url, created_at")
         .eq("username", usernameParam)
         .is("deleted_at", null)
         .single();
 
-      if (!user) {
+      if (!user_data) {
         setNotFound(true);
         setLoading(false);
         return;
@@ -53,7 +55,7 @@ export function CreatorProfilePage() {
       const { data: ap } = await supabase
         .from("artist_profiles")
         .select("id")
-        .eq("user_id", user.id)
+        .eq("user_id", user_data.id)
         .single();
 
       if (!ap) {
@@ -63,13 +65,13 @@ export function CreatorProfilePage() {
       }
 
       setProfile({
-        userId: user.id,
-        username: user.username,
-        name: user.name,
-        bio: user.bio,
-        avatar_url: user.avatar_url,
+        userId: user_data.id,
+        username: user_data.username,
+        name: user_data.name,
+        bio: user_data.bio,
+        avatar_url: user_data.avatar_url,
         artistId: ap.id,
-        joinedYear: new Date(user.created_at).getFullYear().toString(),
+        joinedYear: new Date(user_data.created_at).getFullYear().toString(),
       });
 
       // 3. 撈作品集
@@ -83,9 +85,42 @@ export function CreatorProfilePage() {
         .limit(12);
 
       setArtworks(works ?? []);
+
+      // 追蹤狀態（只有登入且不是自己才查）
+      if (user && user.id !== user_data.id) {
+        const [followRes, countRes] = await Promise.all([
+          supabase
+            .from("follows")
+            .select("follower_id")
+            .eq("follower_id", user.id)
+            .eq("following_id", user_data.id)
+            .maybeSingle(),
+          supabase
+            .from("follows")
+            .select("*", { count: "exact", head: true })
+            .eq("following_id", user_data.id),
+        ]);
+        setIsFollowing(!!followRes.data);
+        setFollowerCount(countRes.count ?? 0);
+      }
+
       setLoading(false);
     })();
-  }, [usernameParam]);
+  }, [usernameParam, user]);
+
+  async function handleToggleFollow() {
+    if (!user || !profile) return;
+    if (isFollowing) {
+      await supabase.from("follows").delete()
+        .eq("follower_id", user.id).eq("following_id", profile.userId);
+      setIsFollowing(false);
+      setFollowerCount((prev) => Math.max(0, prev - 1));
+    } else {
+      await supabase.from("follows").insert({ follower_id: user.id, following_id: profile.userId });
+      setIsFollowing(true);
+      setFollowerCount((prev) => prev + 1);
+    }
+  }
 
   if (loading) {
     return (
@@ -120,6 +155,8 @@ export function CreatorProfilePage() {
     );
   }
 
+  const isOwnProfile = user?.id === profile.userId;
+
   return (
     <div className="h-full overflow-y-auto pb-28 [&::-webkit-scrollbar]:hidden bg-[#0a0a0f]">
       {/* Header */}
@@ -151,21 +188,43 @@ export function CreatorProfilePage() {
         )}
 
         {/* Actions */}
-        <div className="flex gap-3">
+        {isOwnProfile ? (
           <button
-            onClick={async () => {
-              if (!user) { navigate("/login"); return; }
-              const convId = await getOrCreateConversation(user.id, profile.userId);
-              if (convId) navigate(`/chat/${convId}`);
-            }}
-            className="flex-1 py-3 rounded-xl bg-gradient-to-r from-pink-400/80 via-fuchsia-400/70 to-pink-300/80 backdrop-blur-xl text-white font-semibold hover:opacity-90 transition-opacity shadow-[inset_0_2px_8px_rgba(255,255,255,0.4),0_4px_16px_rgba(236,72,153,0.5)] border border-white/30"
+            onClick={() => navigate("/profile")}
+            className="w-full py-3 rounded-xl bg-white/10 backdrop-blur-xl border border-white/20 text-white font-semibold hover:bg-white/15 transition-all"
           >
-            聊聊
+            編輯個人頁
           </button>
-          <button className="w-12 h-12 rounded-xl bg-white/10 backdrop-blur-xl border border-white/20 flex items-center justify-center hover:bg-white/15 transition-all">
-            <Heart size={20} className="text-white" />
-          </button>
-        </div>
+        ) : (
+          <div className="flex gap-3">
+            <button
+              onClick={async () => {
+                if (!user) { navigate("/login"); return; }
+                const convId = await getOrCreateConversation(user.id, profile.userId);
+                if (convId) navigate(`/chat/${convId}`);
+              }}
+              className="flex-1 py-3 rounded-xl bg-gradient-to-r from-pink-400/80 via-fuchsia-400/70 to-pink-300/80 backdrop-blur-xl text-white font-semibold hover:opacity-90 transition-opacity shadow-[inset_0_2px_8px_rgba(255,255,255,0.4),0_4px_16px_rgba(236,72,153,0.5)] border border-white/30"
+            >
+              聊聊
+            </button>
+            <button
+              onClick={() => { if (!user) { navigate("/login"); return; } handleToggleFollow(); }}
+              className={`w-12 h-12 rounded-xl backdrop-blur-xl flex flex-col items-center justify-center border transition-all ${
+                isFollowing
+                  ? "bg-red-500/20 border-red-400/40 hover:bg-red-500/30"
+                  : "bg-white/10 border-white/20 hover:bg-white/15"
+              }`}
+            >
+              <Heart
+                size={17}
+                className={isFollowing ? "text-red-400 fill-red-400" : "text-white"}
+              />
+              {followerCount > 0 && (
+                <span className="text-[8px] text-gray-400 mt-0.5 leading-none">{followerCount}</span>
+              )}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* 作品集 */}
