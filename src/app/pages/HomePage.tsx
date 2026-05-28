@@ -1,90 +1,70 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
-import { Search, Bell, Heart, Star, ChevronRight } from "lucide-react";
+import { Search, Bell, Heart, ChevronRight, ImageOff } from "lucide-react";
+import { supabase } from "../../lib/supabase";
 
 const categories = ["熱門推薦", "個人化推薦", "角色委託", "品牌視覺", "客製刺青", "校園創作者"];
 
-const bentoItems = [
-  {
-    id: 1,
-    tag: "角色設計",
-    title: "霧面藍銀角色",
-    image: "https://images.unsplash.com/photo-1768797646664-0c33d518facf?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxmYW50YXN5JTIwY2hhcmFjdGVyJTIwZGVzaWduJTIwYXJ0d29ya3xlbnwxfHx8fDE3NzMyMjUyNzZ8MA&ixlib=rb-4.1.0&q=80&w=1080",
-    span: "tall-left",
-  },
-  {
-    id: 2,
-    tag: "品牌設計",
-    title: "Y2K 專輯視覺",
-    image: "https://images.unsplash.com/photo-1634242795248-4b45073ee336?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHx5MmslMjBhZXN0aGV0aWMlMjBhbGJ1bSUyMGNvdmVyJTIwZGVzaWdufGVufDF8fHx8MTc3MzIyNTI3N3ww&ixlib=rb-4.1.0&q=80&w=1080",
-    span: "top-right",
-  },
-  {
-    id: 3,
-    tag: "刺青線稿",
-    title: "極簡刺青線稿",
-    image: "https://images.unsplash.com/photo-1704345911745-f2524e8b76f6?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxtaW5pbWFsJTIwdGF0dG9vJTIwbGluZSUyMGFydCUyMHNrZXRjaHxlbnwxfHx8fDE3NzMyMjUyNzZ8MA&ixlib=rb-4.1.0&q=80&w=1080",
-    span: "bottom-left",
-  },
-  {
-    id: 4,
-    tag: "數位插畫",
-    title: "Exhibit 展覽海報",
-    image: "https://images.unsplash.com/photo-1767652723573-161f1c223d63?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxwb3N0ZXIlMjBncmFwaGljJTIwZGVzaWduJTIwZXhoaWJpdGlvbiUyMGFydHxlbnwxfHx8fDE3NzMyMjUyODB8MA&ixlib=rb-4.1.0&q=80&w=1080",
-    span: "wide",
-  },
-  {
-    id: 5,
-    tag: "抽象",
-    title: "夢核色彩插畫",
-    image: "https://images.unsplash.com/photo-1759270958540-c98ae17aec4c?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxhYnN0cmFjdCUyMGRpZ2l0YWwlMjBhcnQlMjBpbGx1c3RyYXRpb258ZW58MXx8fHwxNzczMTkxNzU5fDA&ixlib=rb-4.1.0&q=80&w=1080",
-    span: "square",
-  },
-  {
-    id: 6,
-    tag: "雕塑",
-    title: "手作陶瓷質感",
-    image: "https://images.unsplash.com/photo-1558300249-1ecd0bbb9068?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxzaWx2ZXIlMjBzY3VscHR1cmUlMjBjZXJhbWljJTIwYXJ0JTIwdGV4dHVyZXxlbnwxfHx8fDE3NzMyMjUyNzd8MA&ixlib=rb-4.1.0&q=80&w=1080",
-    span: "square",
-  },
-];
+interface Artwork {
+  id: number;
+  title: string | null;
+  cover_image_url: string | null;
+}
 
-const creators = [
-  {
-    id: "eavan",
-    name: "EAVAN",
-    role: "插畫 / 平面設計",
-    avatar: "https://images.unsplash.com/photo-1730295004949-d3f6c773aedd?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxhcnRpc3QlMjBwb3J0cmFpdCUyMHNtaWxpbmd8ZW58MXx8fHwxNzczMTY2NjQyfDA&ixlib=rb-4.1.0&q=80&w=400",
-    rating: 4.9,
-    price: "NT$800+",
-    badge: "Fast Reply",
-    badgeColor: "bg-cyan-500/20 text-cyan-300 border-cyan-500/30",
-  },
-  {
-    id: "pop",
-    name: "popOpooP",
-    role: "角色設計 / 3D",
-    avatar: "https://images.unsplash.com/photo-1595745688820-1a8bca9dd00f?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxjcmVhdGl2ZSUyMHBlcnNvbiUyMHBvcnRyYWl0fGVufDF8fHx8MTc3MzE0NTMzOHww&ixlib=rb-4.1.0&q=80&w=400",
-    rating: 4.8,
-    price: "NT$1200+",
-    badge: "Open for Commission",
-    badgeColor: "bg-violet-500/20 text-violet-300 border-violet-500/30",
-  },
-  {
-    id: "maya",
-    name: "Maya Patel",
-    role: "品牌視覺 / UI",
-    avatar: "https://images.unsplash.com/photo-1740128041073-68257e968a2d?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxkZXNpZ25lciUyMHBvcnRyYWl0JTIwcHJvZmVzc2lvbmFsfGVufDF8fHx8MTc3MzEyMjk3MHww&ixlib=rb-4.1.0&q=80&w=400",
-    rating: 5.0,
-    price: "NT$2000+",
-    badge: "Limited Slot",
-    badgeColor: "bg-fuchsia-500/20 text-fuchsia-300 border-fuchsia-500/30",
-  },
-];
+interface Creator {
+  id: number;          // artist_profiles.id
+  username: string | null;
+  name: string | null;
+  bio: string | null;
+  avatar_url: string | null;
+}
 
 export function HomePage() {
   const [activeCat, setActiveCat] = useState(0);
   const navigate = useNavigate();
+
+  const [artworks, setArtworks] = useState<Artwork[]>([]);
+  const [creators, setCreators] = useState<Creator[]>([]);
+  const [loadingArtworks, setLoadingArtworks] = useState(true);
+  const [loadingCreators, setLoadingCreators] = useState(true);
+
+  useEffect(() => {
+    supabase
+      .from("artworks")
+      .select("id, title, cover_image_url")
+      .eq("status", "published")
+      .is("deleted_at", null)
+      .order("created_at", { ascending: false })
+      .limit(6)
+      .then(({ data }) => {
+        setArtworks(data ?? []);
+        setLoadingArtworks(false);
+      });
+
+    supabase
+      .from("artist_profiles")
+      .select("id, users:user_id ( username, name, bio, avatar_url )")
+      .order("created_at", { ascending: false })
+      .limit(6)
+      .then(({ data }) => {
+        const mapped: Creator[] = (data ?? [])
+          // 過濾掉 user 已被軟刪除 / 不存在的
+          .filter((row: any) => row.users)
+          .map((row: any) => ({
+            id: row.id,
+            username: row.users.username,
+            name: row.users.name,
+            bio: row.users.bio,
+            avatar_url: row.users.avatar_url,
+          }))
+          .slice(0, 3);
+        setCreators(mapped);
+        setLoadingCreators(false);
+      });
+  }, []);
+
+  // 把作品依 bento 位置取出（不足就回傳 undefined，渲染時顯示佔位）
+  const slot = (i: number): Artwork | undefined => artworks[i];
 
   return (
     <div className="h-full overflow-y-auto pb-28 [&::-webkit-scrollbar]:hidden bg-[#0a0a0f]">
@@ -100,118 +80,38 @@ export function HomePage() {
       </div>
 
       {/* Bento Grid */}
-      <div className="px-3 mb-4">
-        {/* Row 1 + Row 2: Left stacked, Right tall */}
-        <div className="flex gap-2 mb-2">
-          {/* Left column: 2 stacked cards */}
-          <div className="flex flex-col gap-2 flex-[3]">
-            {/* Card 1 - top left */}
-            <div className="relative h-44 rounded-[20px] overflow-hidden cursor-pointer group">
-              <img
-                src={bentoItems[0].image}
-                alt={bentoItems[0].title}
-                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
-              <div className="absolute bottom-3 left-3">
-                <span className="text-[10px] text-gray-300 bg-black/40 backdrop-blur-sm px-2 py-0.5 rounded-full border border-white/10">
-                  {bentoItems[0].tag}
-                </span>
-              </div>
-              <button className="absolute top-3 right-3 w-7 h-7 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center">
-                <Heart size={13} className="text-white" />
-              </button>
+      {loadingArtworks ? (
+        <BentoSkeleton />
+      ) : artworks.length === 0 ? (
+        <BentoEmpty />
+      ) : (
+        <div className="px-3 mb-4">
+          {/* Row 1 + Row 2: Left stacked, Right tall */}
+          <div className="flex gap-2 mb-2">
+            {/* Left column: 2 stacked cards */}
+            <div className="flex flex-col gap-2 flex-[3]">
+              <BentoCard artwork={slot(0)} heightClass="h-44" showHeart />
+              <BentoCard artwork={slot(2)} heightClass="h-36" />
             </div>
-            {/* Card 3 - bottom left */}
-            <div className="relative h-36 rounded-[20px] overflow-hidden cursor-pointer group">
-              <img
-                src={bentoItems[2].image}
-                alt={bentoItems[2].title}
-                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
-              <div className="absolute bottom-3 left-3">
-                <span className="text-[10px] text-gray-300 bg-black/40 backdrop-blur-sm px-2 py-0.5 rounded-full border border-white/10">
-                  {bentoItems[2].tag}
-                </span>
-              </div>
+
+            {/* Right column: 1 tall card */}
+            <div className="flex-[2]">
+              <BentoCard artwork={slot(1)} heightClass="h-[21.5rem]" showHeart />
             </div>
           </div>
 
-          {/* Right column: 1 tall card */}
-          <div className="flex-[2]">
-            <div className="relative h-[21.5rem] rounded-[20px] overflow-hidden cursor-pointer group bg-white">
-              <img
-                src={bentoItems[1].image}
-                alt={bentoItems[1].title}
-                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
-              <div className="absolute bottom-3 left-3">
-                <span className="text-[10px] text-gray-300 bg-black/40 backdrop-blur-sm px-2 py-0.5 rounded-full border border-white/10">
-                  {bentoItems[1].tag}
-                </span>
-              </div>
-              <button className="absolute top-3 right-3 w-7 h-7 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center">
-                <Heart size={13} className="text-white" />
-              </button>
-            </div>
+          {/* Row 3: Wide panoramic card */}
+          <div className="mb-2">
+            <BentoCard artwork={slot(3)} heightClass="h-36" showHeart showTitle />
           </div>
-        </div>
 
-        {/* Row 3: Wide panoramic card */}
-        <div className="relative h-36 rounded-[20px] overflow-hidden cursor-pointer group mb-2">
-          <img
-            src={bentoItems[3].image}
-            alt={bentoItems[3].title}
-            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-          />
-          <div className="absolute inset-0 bg-gradient-to-r from-black/60 via-transparent to-transparent" />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
-          <div className="absolute bottom-3 left-4 flex items-center gap-2">
-            <span className="text-[10px] text-gray-200 bg-black/40 backdrop-blur-sm px-2 py-0.5 rounded-full border border-white/10">
-              {bentoItems[3].tag}
-            </span>
-            <span className="text-[11px] text-white font-medium">{bentoItems[3].title}</span>
-          </div>
-          <button className="absolute top-3 right-3 w-7 h-7 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center">
-            <Heart size={13} className="text-white" />
-          </button>
-        </div>
-
-        {/* Row 4: 2 equal cards */}
-        <div className="flex gap-2">
-          <div className="relative flex-1 h-44 rounded-[20px] overflow-hidden cursor-pointer group">
-            <img
-              src={bentoItems[4].image}
-              alt={bentoItems[4].title}
-              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
-            <div className="absolute bottom-3 left-3">
-              <span className="text-[10px] text-gray-300 bg-black/40 backdrop-blur-sm px-2 py-0.5 rounded-full border border-white/10">
-                {bentoItems[4].tag}
-              </span>
-            </div>
-          </div>
-          <div className="relative flex-1 h-44 rounded-[20px] overflow-hidden cursor-pointer group">
-            <img
-              src={bentoItems[5].image}
-              alt={bentoItems[5].title}
-              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
-            <div className="absolute bottom-3 left-3">
-              <span className="text-[10px] text-gray-300 bg-black/40 backdrop-blur-sm px-2 py-0.5 rounded-full border border-white/10">
-                {bentoItems[5].tag}
-              </span>
-            </div>
-            <button className="absolute top-3 right-3 w-7 h-7 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center">
-              <Heart size={13} className="text-white" />
-            </button>
+          {/* Row 4: 2 equal cards */}
+          <div className="flex gap-2">
+            <BentoCard artwork={slot(4)} heightClass="h-44 flex-1" />
+            <BentoCard artwork={slot(5)} heightClass="h-44 flex-1" showHeart />
           </div>
         </div>
-      </div>
+      )}
 
       {/* Category Tags */}
       <div className="pl-4 mb-6 overflow-x-auto [&::-webkit-scrollbar]:hidden">
@@ -240,49 +140,167 @@ export function HomePage() {
             全部 <ChevronRight size={12} />
           </button>
         </div>
-        <div className="flex flex-col gap-2.5">
-          {creators.map((creator) => (
-            <div
-              key={creator.id}
-              onClick={() => navigate(`/chat/${creator.id}`)}
-              className="flex items-center justify-between p-3 bg-white/4 backdrop-blur-md border border-white/6 rounded-2xl hover:bg-white/8 transition-colors cursor-pointer"
-            >
-              <div className="flex items-center gap-3">
-                <div className="relative">
-                  <img
-                    src={creator.avatar}
-                    alt={creator.name}
-                    className="w-10 h-10 rounded-full object-cover border border-white/10"
-                  />
-                  <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-400 border-2 border-[#0a0a0f] rounded-full" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-white text-sm font-medium">{creator.name}</span>
-                    <span className={`text-[9px] px-1.5 py-0.5 rounded-full border ${creator.badgeColor}`}>
-                      {creator.badge}
+
+        {loadingCreators ? (
+          <CreatorListSkeleton />
+        ) : creators.length === 0 ? (
+          <p className="text-gray-500 text-xs px-3 py-6 text-center">尚無推薦創作者</p>
+        ) : (
+          <div className="flex flex-col gap-2.5">
+            {creators.map((creator) => (
+              <div
+                key={creator.id}
+                onClick={() => creator.username && navigate(`/creator/${creator.username}`)}
+                className="flex items-center justify-between p-3 bg-white/4 backdrop-blur-md border border-white/6 rounded-2xl hover:bg-white/8 transition-colors cursor-pointer"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="relative shrink-0">
+                    <Avatar url={creator.avatar_url} name={creator.name} />
+                    <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-400 border-2 border-[#0a0a0f] rounded-full" />
+                  </div>
+                  <div className="min-w-0">
+                    <span className="text-white text-sm font-medium truncate block">
+                      {creator.name ?? creator.username ?? "未命名"}
                     </span>
-                  </div>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <span className="text-gray-400 text-[11px]">{creator.role}</span>
-                    <span className="text-gray-600 text-[10px]">•</span>
-                    <div className="flex items-center gap-0.5">
-                      <Star size={10} className="text-fuchsia-400 fill-fuchsia-400" />
-                      <span className="text-[10px] text-gray-300">{creator.rating}</span>
-                    </div>
+                    {creator.bio && (
+                      <span className="text-gray-400 text-[11px] truncate block">
+                        {creator.bio}
+                      </span>
+                    )}
                   </div>
                 </div>
-              </div>
-              <div className="flex flex-col items-end gap-1.5">
-                <span className="text-xs text-gray-300 font-medium">{creator.price}</span>
-                <button className="text-[10px] px-2.5 py-1 rounded-lg bg-white/8 border border-white/10 text-gray-200 hover:bg-white/14 transition-colors">
+                <button className="text-[10px] px-2.5 py-1 rounded-lg bg-white/8 border border-white/10 text-gray-200 hover:bg-white/14 transition-colors shrink-0 ml-2">
                   委託
                 </button>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────────
+ * Sub-components
+ * ────────────────────────────────────────────────────────────── */
+
+function BentoCard({
+  artwork,
+  heightClass,
+  showHeart = false,
+  showTitle = false,
+}: {
+  artwork: Artwork | undefined;
+  heightClass: string;
+  showHeart?: boolean;
+  showTitle?: boolean;
+}) {
+  const navigate = useNavigate();
+
+  if (!artwork) {
+    return (
+      <div
+        className={`relative ${heightClass} rounded-[20px] overflow-hidden bg-white/5 border border-white/8 flex items-center justify-center`}
+      >
+        <ImageOff size={20} className="text-gray-700" />
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={`relative ${heightClass} rounded-[20px] overflow-hidden cursor-pointer group bg-white/5`}
+      onClick={() => navigate(`/artwork/${artwork.id}`)}
+    >
+      {artwork.cover_image_url ? (
+        <img
+          src={artwork.cover_image_url}
+          alt={artwork.title ?? ""}
+          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+        />
+      ) : (
+        <div className="w-full h-full flex items-center justify-center">
+          <ImageOff size={20} className="text-gray-700" />
+        </div>
+      )}
+      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
+      {showTitle && artwork.title && (
+        <div className="absolute bottom-3 left-4">
+          <span className="text-[11px] text-white font-medium">{artwork.title}</span>
+        </div>
+      )}
+      {showHeart && (
+        <button className="absolute top-3 right-3 w-7 h-7 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center">
+          <Heart size={13} className="text-white" />
+        </button>
+      )}
+    </div>
+  );
+}
+
+function BentoSkeleton() {
+  return (
+    <div className="px-3 mb-4 animate-pulse">
+      <div className="flex gap-2 mb-2">
+        <div className="flex flex-col gap-2 flex-[3]">
+          <div className="h-44 rounded-[20px] bg-white/5" />
+          <div className="h-36 rounded-[20px] bg-white/5" />
+        </div>
+        <div className="flex-[2]">
+          <div className="h-[21.5rem] rounded-[20px] bg-white/5" />
         </div>
       </div>
+      <div className="h-36 rounded-[20px] bg-white/5 mb-2" />
+      <div className="flex gap-2">
+        <div className="flex-1 h-44 rounded-[20px] bg-white/5" />
+        <div className="flex-1 h-44 rounded-[20px] bg-white/5" />
+      </div>
+    </div>
+  );
+}
+
+function BentoEmpty() {
+  return (
+    <div className="mx-3 mb-4 rounded-[20px] border border-dashed border-white/10 px-6 py-14 flex flex-col items-center gap-2">
+      <ImageOff size={28} className="text-gray-600" />
+      <p className="text-gray-400 text-sm">尚未有公開作品</p>
+      <p className="text-gray-600 text-xs">創作者發佈第一件作品後會出現在這裡</p>
+    </div>
+  );
+}
+
+function CreatorListSkeleton() {
+  return (
+    <div className="flex flex-col gap-2.5 animate-pulse">
+      {[0, 1, 2].map((i) => (
+        <div key={i} className="flex items-center gap-3 p-3 bg-white/4 border border-white/6 rounded-2xl">
+          <div className="w-10 h-10 rounded-full bg-white/8" />
+          <div className="flex-1 space-y-2">
+            <div className="h-3 w-24 bg-white/8 rounded" />
+            <div className="h-2.5 w-40 bg-white/6 rounded" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function Avatar({ url, name }: { url: string | null; name: string | null }) {
+  if (url) {
+    return (
+      <img
+        src={url}
+        alt={name ?? "creator"}
+        className="w-10 h-10 rounded-full object-cover border border-white/10"
+      />
+    );
+  }
+  return (
+    <div className="w-10 h-10 rounded-full bg-purple-900 border border-white/10 flex items-center justify-center">
+      <span className="text-white/70 text-sm font-bold">
+        {name?.[0]?.toUpperCase() ?? "?"}
+      </span>
     </div>
   );
 }
