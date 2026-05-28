@@ -61,7 +61,7 @@ export function ArtworkDetailPage() {
 
   if (loading) {
     return (
-      <div className="h-full bg-black overflow-y-auto pb-28 [&::-webkit-scrollbar]:hidden">
+      <div className="h-full bg-[#0a0a0f] overflow-y-auto pb-28 [&::-webkit-scrollbar]:hidden">
         <div className="animate-pulse">
           <div className="w-full aspect-square bg-white/8" />
           <div className="px-5 pt-5 space-y-3">
@@ -76,7 +76,7 @@ export function ArtworkDetailPage() {
 
   if (notFound || !artwork) {
     return (
-      <div className="h-full bg-black flex flex-col items-center justify-center gap-4">
+      <div className="h-full bg-[#0a0a0f] flex flex-col items-center justify-center gap-4">
         <ImageOff size={36} className="text-gray-600" />
         <p className="text-gray-400 text-sm">找不到這件作品</p>
         <button
@@ -90,12 +90,12 @@ export function ArtworkDetailPage() {
   }
 
   return (
-    <div className="h-full bg-black overflow-y-auto pb-28 [&::-webkit-scrollbar]:hidden">
+    <div className="h-full bg-[#0a0a0f] overflow-y-auto pb-28 [&::-webkit-scrollbar]:hidden">
       {/* 返回按鈕 (浮在圖片上) */}
       <div className="relative">
         <button
           onClick={() => navigate(-1)}
-          className="absolute top-12 left-4 z-10 w-10 h-10 rounded-full bg-black/50 backdrop-blur-md border border-white/20 flex items-center justify-center"
+          className="absolute top-12 left-4 z-10 w-10 h-10 rounded-full bg-[#0a0a0f]/50 backdrop-blur-md border border-white/20 flex items-center justify-center"
         >
           <ArrowLeft size={20} className="text-white" />
         </button>

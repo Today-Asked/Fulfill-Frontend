@@ -42,6 +42,9 @@ export function ProfilePage() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting]         = useState(false);
   const [editMode, setEditMode]         = useState(false);
+  const [editingBio, setEditingBio]     = useState(false);
+  const [bioInput, setBioInput]         = useState("");
+  const [savingBio, setSavingBio]       = useState(false);
 
   // 分頁依身份動態決定
   const tabs = artist
@@ -96,6 +99,16 @@ export function ProfilePage() {
     setArtworks((prev) => prev.filter((a) => a.id !== id));
   }
 
+  async function handleSaveBio() {
+    if (!user) return;
+    setSavingBio(true);
+    const trimmed = bioInput.trim() || null;
+    await supabase.from("users").update({ bio: trimmed }).eq("id", user.id);
+    setProfile((p) => p ? { ...p, bio: trimmed } : p);
+    setEditingBio(false);
+    setSavingBio(false);
+  }
+
   async function handleDeleteAccount() {
     setDeleting(true);
     await supabase.rpc("delete_own_account");
@@ -107,7 +120,7 @@ export function ProfilePage() {
   const isArtworkTab  = activeTab === artworkTabIdx && artist != null;
 
   return (
-    <div className="h-full flex flex-col bg-black overflow-hidden">
+    <div className="h-full flex flex-col bg-[#0a0a0f] overflow-hidden">
       {/* Top bar */}
       <div className="flex items-center justify-between px-5 pt-12 pb-3 flex-shrink-0">
         <div className="flex items-center gap-2">
@@ -161,11 +174,43 @@ export function ProfilePage() {
             <span className="text-gray-400 text-xs">檢視你的評價……</span>
           </button>
 
-          {!profile?.bio && (
-            <button className="w-full flex items-center justify-center gap-2 py-2.5 border border-white/12 rounded-full hover:bg-white/4 transition-colors">
+          {!profile?.bio && !editingBio && (
+            <button
+              onClick={() => { setBioInput(""); setEditingBio(true); }}
+              className="w-full flex items-center justify-center gap-2 py-2.5 border border-white/12 rounded-full hover:bg-white/4 transition-colors"
+            >
               <Plus size={14} className="text-gray-400" />
               <span className="text-gray-400 text-xs">新增你的個人簡介</span>
             </button>
+          )}
+          {editingBio && (
+            <div className="w-full">
+              <textarea
+                autoFocus
+                value={bioInput}
+                onChange={(e) => setBioInput(e.target.value)}
+                rows={3}
+                maxLength={160}
+                placeholder="簡單介紹一下自己…"
+                className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-fuchsia-500/40 transition-all resize-none"
+              />
+              <p className="text-gray-600 text-[10px] text-right mt-0.5">{bioInput.length} / 160</p>
+              <div className="flex gap-2 mt-2">
+                <button
+                  onClick={handleSaveBio}
+                  disabled={savingBio}
+                  className="flex-1 py-2 rounded-xl bg-fuchsia-500/20 border border-fuchsia-500/30 text-fuchsia-300 text-xs hover:bg-fuchsia-500/30 transition-colors disabled:opacity-50"
+                >
+                  {savingBio ? "儲存中…" : "儲存"}
+                </button>
+                <button
+                  onClick={() => setEditingBio(false)}
+                  className="flex-1 py-2 rounded-xl bg-white/5 border border-white/10 text-gray-400 text-xs hover:bg-white/8 transition-colors"
+                >
+                  取消
+                </button>
+              </div>
+            </div>
           )}
         </div>
 

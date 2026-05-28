@@ -100,18 +100,13 @@ export function OrdersPage() {
         </div>
         {/* Calendar grid */}
         <div className="px-3 pb-3">
-          <div className="grid grid-cols-8 mb-1 mt-2">
-            <div className="col-span-1" />
+          <div className="grid grid-cols-7 mb-1 mt-2">
             {DAYS.map((d, i) => (
               <div key={i} className="text-center text-gray-500 text-[10px]">{d}</div>
             ))}
           </div>
           {MONTH_ROWS.map((row, ri) => (
-            <div key={ri} className="grid grid-cols-8 mb-1 items-center">
-              {/* Row label placeholder */}
-              <div className="col-span-1 text-gray-600 text-[9px] truncate pr-1">
-                {ri === 0 ? "Lorem" : ri === 1 ? "Dolor" : ri === 2 ? "Conse" : ri === 3 ? "Adipi" : ""}
-              </div>
+            <div key={ri} className="grid grid-cols-7 mb-1 items-center">
               {row.map((day, ci) => (
                 <div key={ci} className="flex items-center justify-center">
                   {day ? (

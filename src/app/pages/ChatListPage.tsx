@@ -50,7 +50,7 @@ export function ChatListPage() {
   );
 
   return (
-    <div className="h-full flex flex-col bg-black">
+    <div className="h-full flex flex-col bg-[#0a0a0f]">
       {/* Header */}
       <div className="px-5 pt-14 pb-4">
         <div className="flex items-center gap-4">

@@ -7,7 +7,6 @@ export function Root() {
   const location = useLocation();
   const { user, loading, profileChecked, needsOnboarding, isPasswordRecovery } = useAuth();
 
-  const isChatRoom    = location.pathname.startsWith("/chat/");
   const isAuthPage    = ["/login", "/register", "/forgot-password", "/welcome"].includes(location.pathname);
   const isOnboarding  = location.pathname === "/onboarding";
   const isResetPassword = location.pathname === "/reset-password";
@@ -19,7 +18,7 @@ export function Root() {
   if (isPasswordRecovery && !isResetPassword) return <Navigate to="/reset-password" replace />;
 
   // ── /reset-password：不做任何跳轉守衛，讓頁面自己處理 token / error ──
-  if (isResetPassword) return <Frame isChatRoom={false} isAuthPage={false} isOnboarding={false}><Outlet /></Frame>;
+  if (isResetPassword) return <Frame isAuthPage={false} isOnboarding={false}><Outlet /></Frame>;
 
   // ── 未登入 → 歡迎頁 ─────────────────────────────────────────────────
   if (!user && !isAuthPage) return <Navigate to="/welcome" replace />;
@@ -35,7 +34,7 @@ export function Root() {
   if (user && !needsOnboarding && isOnboarding) return <Navigate to="/" replace />;
 
   return (
-    <Frame isChatRoom={isChatRoom} isAuthPage={isAuthPage} isOnboarding={isOnboarding}>
+    <Frame isAuthPage={isAuthPage} isOnboarding={isOnboarding}>
       <Outlet />
     </Frame>
   );
@@ -53,12 +52,10 @@ function Spinner() {
 
 function Frame({
   children,
-  isChatRoom,
   isAuthPage,
   isOnboarding,
 }: {
   children: React.ReactNode;
-  isChatRoom: boolean;
   isAuthPage: boolean;
   isOnboarding: boolean;
 }) {
@@ -72,7 +69,7 @@ function Frame({
 
         <div className="flex-1 overflow-hidden relative z-10">{children}</div>
 
-        {!isChatRoom && !isAuthPage && !isOnboarding && <BottomNav />}
+        {!isAuthPage && !isOnboarding && <BottomNav />}
       </div>
     </div>
   );

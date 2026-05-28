@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router";
 import {
   ArrowLeft,
@@ -7,9 +7,6 @@ import {
   Paperclip,
   Send,
   ChevronRight,
-  Home,
-  Plus,
-  UserCircle2,
 } from "lucide-react";
 
 type Message =
@@ -59,6 +56,11 @@ export function ChatRoomPage() {
   const navigate = useNavigate();
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [inputText, setInputText] = useState("");
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
 
   const handleSend = () => {
     if (!inputText.trim()) return;
@@ -77,7 +79,7 @@ export function ChatRoomPage() {
   };
 
   return (
-    <div className="h-full flex flex-col bg-black">
+    <div className="h-full flex flex-col bg-[#0a0a0f]">
       {/* Header */}
       <div className="flex items-center justify-between px-4 pt-12 pb-3 border-b border-white/6 flex-shrink-0">
         <div className="flex items-center gap-3">
@@ -124,7 +126,7 @@ export function ChatRoomPage() {
                 className={`max-w-[72%] px-4 py-2.5 rounded-[20px] ${
                   isSent
                     ? "bg-white text-black rounded-br-md"
-                    : "bg-white text-black rounded-bl-md"
+                    : "bg-white/10 border border-white/8 text-white rounded-bl-md"
                 }`}
               >
                 <p className="text-sm whitespace-pre-line leading-relaxed">{msg.text}</p>
@@ -132,10 +134,11 @@ export function ChatRoomPage() {
             </div>
           );
         })}
+        <div ref={messagesEndRef} />
       </div>
 
       {/* Input Bar */}
-      <div className="flex-shrink-0 px-4 pb-5 pt-2 border-t border-white/6">
+      <div className="flex-shrink-0 px-4 pb-24 pt-2 border-t border-white/6">
         <div className="flex items-center gap-2">
           <div className="flex-1 flex items-center bg-white/6 border border-white/10 rounded-full px-4 h-11">
             <input
@@ -152,24 +155,6 @@ export function ChatRoomPage() {
           </div>
           <button className="w-11 h-11 rounded-full bg-white/8 border border-white/12 flex items-center justify-center flex-shrink-0">
             <Paperclip size={18} className="text-gray-400" />
-          </button>
-        </div>
-      </div>
-
-      {/* Simplified bottom nav for chat room */}
-      <div className="flex-shrink-0 pb-5 pt-2 px-6">
-        <div className="flex justify-around items-center bg-white/4 backdrop-blur-xl border border-white/8 rounded-full px-6 py-3">
-          <button onClick={() => navigate("/")} className="text-gray-500">
-            <Home size={20} strokeWidth={1.5} />
-          </button>
-          <button onClick={() => navigate("/create")} className="text-gray-500">
-            <Plus size={20} strokeWidth={1.5} />
-          </button>
-          <button className="text-white">
-            <Send size={20} strokeWidth={1.5} />
-          </button>
-          <button onClick={() => navigate("/profile")} className="text-gray-500">
-            <UserCircle2 size={20} strokeWidth={1.5} />
           </button>
         </div>
       </div>
