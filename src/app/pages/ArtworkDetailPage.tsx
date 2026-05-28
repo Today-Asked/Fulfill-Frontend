@@ -118,17 +118,17 @@ export function ArtworkDetailPage() {
   // ── Loading ──────────────────────────────────────────────────────────────
   if (loading) {
     return (
-      <div className="h-full bg-white overflow-y-auto pb-28 [&::-webkit-scrollbar]:hidden animate-pulse">
+      <div className="h-full bg-black overflow-y-auto pb-28 [&::-webkit-scrollbar]:hidden animate-pulse">
         <div className="px-5 pt-12 pb-3 flex justify-between">
-          <div className="w-6 h-6 bg-gray-100 rounded" />
-          <div className="w-20 h-4 bg-gray-100 rounded" />
+          <div className="w-6 h-6 bg-white/10 rounded" />
+          <div className="w-20 h-4 bg-white/10 rounded" />
         </div>
-        <div className="mx-4 rounded-2xl bg-gray-100" style={{ height: 420 }} />
+        <div className="bg-white/10" style={{ height: 420 }} />
         <div className="px-5 pt-5 space-y-3">
-          <div className="h-7 w-2/3 bg-gray-100 rounded-xl" />
-          <div className="h-4 w-1/4 bg-gray-100 rounded-xl" />
-          <div className="h-4 w-full bg-gray-100 rounded-xl mt-4" />
-          <div className="h-4 w-4/5 bg-gray-100 rounded-xl" />
+          <div className="h-7 w-2/3 bg-white/10 rounded-xl mx-auto" />
+          <div className="h-4 w-1/4 bg-white/8 rounded-xl mx-auto" />
+          <div className="h-4 w-full bg-white/8 rounded-xl mt-4" />
+          <div className="h-4 w-4/5 bg-white/8 rounded-xl" />
         </div>
       </div>
     );
@@ -137,10 +137,10 @@ export function ArtworkDetailPage() {
   // ── Not found ────────────────────────────────────────────────────────────
   if (notFound || !artwork) {
     return (
-      <div className="h-full bg-white flex flex-col items-center justify-center gap-4">
-        <ImageOff size={36} className="text-gray-300" />
-        <p className="text-gray-400 text-sm">找不到這件作品</p>
-        <button onClick={() => navigate(-1)} className="text-pink-400 text-sm underline underline-offset-2">
+      <div className="h-full bg-black flex flex-col items-center justify-center gap-4">
+        <ImageOff size={36} className="text-white/20" />
+        <p className="text-gray-500 text-sm">找不到這件作品</p>
+        <button onClick={() => navigate(-1)} className="text-[#f9a8d4] text-sm underline underline-offset-2">
           返回上一頁
         </button>
       </div>
@@ -149,37 +149,37 @@ export function ArtworkDetailPage() {
 
   // ── Main ─────────────────────────────────────────────────────────────────
   return (
-    <div className="h-full bg-white overflow-y-auto pb-28 [&::-webkit-scrollbar]:hidden">
+    <div className="h-full bg-black overflow-y-auto pb-28 [&::-webkit-scrollbar]:hidden">
 
       {/* Top bar */}
       <div className="flex items-center justify-between px-5 pt-12 pb-3">
-        <button onClick={() => navigate(-1)} className="text-gray-900 hover:text-gray-600 transition-colors">
+        <button onClick={() => navigate(-1)} className="text-white hover:text-white/70 transition-colors">
           <ArrowLeft size={24} strokeWidth={1.8} />
         </button>
-        {dateStr && <span className="text-gray-400 text-xs tracking-wide">{dateStr}</span>}
+        {dateStr && <span className="text-white/40 text-xs tracking-widest">{dateStr}</span>}
       </div>
 
-      {/* Cover image */}
-      <div className="px-4">
+      {/* Cover image — 全寬無 padding，自然縱橫比 */}
+      <div>
         {artwork.cover_image_url ? (
           <img
             src={artwork.cover_image_url}
             alt={artwork.title ?? ""}
-            className="w-full rounded-2xl object-cover"
+            className="w-full object-cover"
           />
         ) : (
-          <div className="w-full aspect-[4/5] rounded-2xl bg-gray-100 flex items-center justify-center">
-            <ImageOff size={40} className="text-gray-300" />
+          <div className="w-full aspect-square bg-white/5 flex items-center justify-center">
+            <ImageOff size={40} className="text-white/20" />
           </div>
         )}
       </div>
 
-      {/* Info */}
-      <div className="px-5 pt-5 pb-2">
+      {/* Info — 黑底白字，置中 */}
+      <div className="px-6 pt-6 pb-2">
 
         {/* Title + heart */}
-        <div className="flex items-start justify-between gap-3 mb-2">
-          <h1 className="flex-1 text-2xl font-bold italic text-gray-900 leading-snug">
+        <div className="flex items-start justify-between gap-4 mb-2">
+          <h1 className="flex-1 text-center text-2xl font-bold italic text-white leading-snug">
             {artwork.title ?? "未命名作品"}
           </h1>
           <button
@@ -188,49 +188,36 @@ export function ArtworkDetailPage() {
             aria-label={isLiked ? "取消喜愛" : "加入喜愛"}
           >
             <Heart
-              size={28}
-              strokeWidth={1.8}
-              className={`transition-colors ${isLiked ? "text-red-400 fill-red-400" : "text-gray-300 hover:text-red-300"}`}
+              size={26}
+              strokeWidth={1.6}
+              className={`transition-colors ${isLiked ? "text-[#f9a8d4] fill-[#f9a8d4]" : "text-white/30 hover:text-[#f9a8d4]"}`}
             />
           </button>
         </div>
 
-        {/* Author */}
+        {/* Author — 置中，可點擊 */}
         {creator && (
           <button
             onClick={() => creator.username && navigate(`/creator/${creator.username}`)}
-            className="flex items-center gap-2 mb-5 group"
+            className="w-full text-center mb-5 group"
           >
-            {creator.avatar_url ? (
-              <img
-                src={creator.avatar_url}
-                alt={creator.name ?? ""}
-                className="w-6 h-6 rounded-full object-cover"
-              />
-            ) : (
-              <div className="w-6 h-6 rounded-full bg-purple-100 flex items-center justify-center">
-                <span className="text-purple-500 text-[10px] font-bold">
-                  {creator.name?.[0]?.toUpperCase() ?? "?"}
-                </span>
-              </div>
-            )}
-            <span className="text-gray-500 text-sm group-hover:text-gray-900 transition-colors">
+            <span className="text-white/50 text-sm tracking-widest uppercase group-hover:text-white transition-colors">
               {creator.name ?? creator.username ?? "創作者"}
             </span>
           </button>
         )}
 
-        {/* Description */}
+        {/* Description — 置中 */}
         {artwork.description && (
-          <p className="text-gray-600 text-sm leading-relaxed mb-6">
+          <p className="text-white/60 text-sm leading-relaxed text-center mb-8">
             {artwork.description}
           </p>
         )}
 
         {/* Find more */}
         {moreArtworks.length > 0 && (
-          <div className="mt-2">
-            <p className="text-gray-900 text-sm font-semibold mb-3 tracking-wide">Find more</p>
+          <div>
+            <p className="text-white font-bold italic text-xl mb-4">Find more</p>
             <div className="columns-2 gap-3">
               {moreArtworks.map((a) => (
                 <button
@@ -246,8 +233,8 @@ export function ArtworkDetailPage() {
                       loading="lazy"
                     />
                   ) : (
-                    <div className="w-full aspect-square bg-gray-100 flex items-center justify-center">
-                      <ImageOff size={20} className="text-gray-300" />
+                    <div className="w-full aspect-square bg-white/5 flex items-center justify-center">
+                      <ImageOff size={20} className="text-white/20" />
                     </div>
                   )}
                 </button>
