@@ -12,6 +12,8 @@ import { OnboardingPage } from "./pages/OnboardingPage";
 import { ForgotPasswordPage } from "./pages/ForgotPasswordPage";
 import { ResetPasswordPage } from "./pages/ResetPasswordPage";
 import { WelcomePage } from "./pages/WelcomePage";
+import { CreatorProfilePage } from "./pages/CreatorProfilePage";
+import { ArtworkDetailPage } from "./pages/ArtworkDetailPage";
 
 export const router = createBrowserRouter([
   {
@@ -19,6 +21,8 @@ export const router = createBrowserRouter([
     Component: Root,
     children: [
       { index: true, Component: HomePage },
+      { path: "artwork/:id", Component: ArtworkDetailPage },
+      { path: "creator/:id", Component: CreatorProfilePage },
       { path: "chat", Component: ChatListPage },
       { path: "chat/:id", Component: ChatRoomPage },
       { path: "create", Component: CreatePage },

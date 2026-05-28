@@ -5,7 +5,7 @@ import { useAuth } from "../contexts/AuthContext";
 
 export function Root() {
   const location = useLocation();
-  const { user, loading, profileChecked, needsOnboarding } = useAuth();
+  const { user, loading, profileChecked, needsOnboarding, isPasswordRecovery } = useAuth();
 
   const isChatRoom    = location.pathname.startsWith("/chat/");
   const isAuthPage    = ["/login", "/register", "/forgot-password", "/welcome"].includes(location.pathname);
@@ -14,6 +14,9 @@ export function Root() {
 
   // ── 等 Supabase 恢復 session ──────────────────────────────────────────
   if (loading) return <Spinner />;
+
+  // ── PASSWORD_RECOVERY 狀態：強制留在重設密碼頁 ───────────────────────
+  if (isPasswordRecovery && !isResetPassword) return <Navigate to="/reset-password" replace />;
 
   // ── /reset-password：不做任何跳轉守衛，讓頁面自己處理 token / error ──
   if (isResetPassword) return <Frame isChatRoom={false} isAuthPage={false} isOnboarding={false}><Outlet /></Frame>;

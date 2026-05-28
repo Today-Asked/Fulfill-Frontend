@@ -9,6 +9,7 @@ interface AuthContextValue {
   loading: boolean;
   profileChecked: boolean;
   needsOnboarding: boolean;
+  isPasswordRecovery: boolean;
   refreshProfile: () => Promise<void>;
   signOut: () => Promise<void>;
 }
@@ -24,6 +25,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [profileChecked, setProfileChecked] = useState(false);
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
+  const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
 
   const checkProfile = useCallback(async (uid: string) => {
     const { data } = await supabase
@@ -53,10 +55,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
 
     // 監聽後續狀態變化
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
       const u = session?.user ?? null;
       setUser(u);
       setLoading(false);
+      if (event === "PASSWORD_RECOVERY") {
+        setIsPasswordRecovery(true);
+      } else if (event === "USER_UPDATED" || event === "SIGNED_OUT") {
+        setIsPasswordRecovery(false);
+      }
       if (u) {
         checkProfile(u.id);
       } else {
@@ -73,7 +80,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, profileChecked, needsOnboarding, refreshProfile, signOut }}>
+    <AuthContext.Provider value={{ user, loading, profileChecked, needsOnboarding, isPasswordRecovery, refreshProfile, signOut }}>
       {children}
     </AuthContext.Provider>
   );

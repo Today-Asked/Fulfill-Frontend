@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router";
 import {
   ChevronDown, LogOut, Plus, X,
   ChevronRight, Image, Bookmark,
   Heart, Lock, Camera, Trash2,
+  EyeOff, Eye, Pencil, Check,
 } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
 import { supabase } from "../../lib/supabase";
@@ -25,10 +27,12 @@ interface Artwork {
   id: number;
   title: string;
   cover_image_url: string;
+  status: "published" | "archived" | "draft";
 }
 
 export function ProfilePage() {
   const { user, signOut } = useAuth();
+  const navigate = useNavigate();
 
   const [profile, setProfile]           = useState<UserProfile | null>(null);
   const [artist, setArtist]             = useState<ArtistProfile | null>(null);
@@ -37,6 +41,7 @@ export function ProfilePage() {
   const [showUpload, setShowUpload]     = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting]         = useState(false);
+  const [editMode, setEditMode]         = useState(false);
 
   // 分頁依身份動態決定
   const tabs = artist
@@ -66,14 +71,30 @@ export function ProfilePage() {
 
   useEffect(() => {
     if (!artist) return;
+    // 自己的 profile 看全部（含隱藏），才能管理
     supabase.from("artworks")
-      .select("id, title, cover_image_url")
+      .select("id, title, cover_image_url, status")
       .eq("artist_id", artist.id)
-      .eq("status", "published")
       .is("deleted_at", null)
       .order("created_at", { ascending: false })
-      .then(({ data }) => { if (data) setArtworks(data); });
+      .then(({ data }) => { if (data) setArtworks(data as Artwork[]); });
   }, [artist]);
+
+  async function handleArchiveToggle(artwork: Artwork) {
+    const newStatus = artwork.status === "published" ? "archived" : "published";
+    await supabase.from("artworks").update({ status: newStatus }).eq("id", artwork.id);
+    setArtworks((prev) =>
+      prev.map((a) => (a.id === artwork.id ? { ...a, status: newStatus } : a))
+    );
+  }
+
+  async function handleDeleteArtwork(id: number) {
+    await supabase
+      .from("artworks")
+      .update({ deleted_at: new Date().toISOString() })
+      .eq("id", id);
+    setArtworks((prev) => prev.filter((a) => a.id !== id));
+  }
 
   async function handleDeleteAccount() {
     setDeleting(true);
@@ -211,25 +232,96 @@ export function ProfilePage() {
             </div>
           ) : (
             <div className="px-5">
+              {/* 作品網格 header */}
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-gray-500 text-xs">{artworks.length} 件作品</span>
+                <button
+                  onClick={() => setEditMode((v) => !v)}
+                  className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs border transition-colors ${
+                    editMode
+                      ? "bg-fuchsia-500/20 border-fuchsia-500/40 text-fuchsia-300"
+                      : "bg-white/5 border-white/10 text-gray-400"
+                  }`}
+                >
+                  {editMode ? <><Check size={11} />完成</> : <><Pencil size={11} />管理</>}
+                </button>
+              </div>
+
               {/* 作品網格 */}
               <div className="grid grid-cols-2 gap-2 mb-4">
                 {artworks.map((artwork) => (
-                  <div key={artwork.id} className="aspect-square rounded-xl overflow-hidden relative group">
-                    <img src={artwork.cover_image_url} alt={artwork.title} className="w-full h-full object-cover" />
-                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all" />
-                    <div className="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-black/70 to-transparent opacity-0 group-hover:opacity-100 transition-all">
-                      <p className="text-white text-xs font-medium truncate">{artwork.title}</p>
-                    </div>
+                  <div
+                    key={artwork.id}
+                    onClick={() => !editMode && navigate(`/artwork/${artwork.id}`)}
+                    className={`aspect-square rounded-xl overflow-hidden relative group ${
+                      editMode ? "cursor-default" : "cursor-pointer"
+                    }`}
+                  >
+                    <img
+                      src={artwork.cover_image_url}
+                      alt={artwork.title}
+                      className={`w-full h-full object-cover transition-all duration-300 ${
+                        editMode ? "brightness-50" : "group-hover:scale-105"
+                      } ${artwork.status === "archived" ? "opacity-50" : ""}`}
+                    />
+
+                    {/* 隱藏中標籤 */}
+                    {artwork.status === "archived" && !editMode && (
+                      <div className="absolute top-2 left-2 flex items-center gap-1 px-2 py-0.5 bg-black/60 rounded-full">
+                        <EyeOff size={10} className="text-gray-300" />
+                        <span className="text-[9px] text-gray-300">隱藏中</span>
+                      </div>
+                    )}
+
+                    {/* 一般模式 hover overlay */}
+                    {!editMode && (
+                      <>
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all" />
+                        <div className="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-black/70 to-transparent opacity-0 group-hover:opacity-100 transition-all">
+                          <p className="text-white text-xs font-medium truncate">{artwork.title}</p>
+                        </div>
+                      </>
+                    )}
+
+                    {/* 編輯模式 overlay */}
+                    {editMode && (
+                      <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 p-3">
+                        <p className="text-white text-[10px] font-medium text-center truncate w-full px-1">
+                          {artwork.title}
+                        </p>
+                        <div className="flex gap-2">
+                          {/* 隱藏 / 顯示 */}
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleArchiveToggle(artwork); }}
+                            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white/15 border border-white/20 text-white text-[10px] hover:bg-white/25 transition-colors"
+                          >
+                            {artwork.status === "archived"
+                              ? <><Eye size={11} />顯示</>
+                              : <><EyeOff size={11} />隱藏</>
+                            }
+                          </button>
+                          {/* 刪除 */}
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleDeleteArtwork(artwork.id); }}
+                            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-red-500/20 border border-red-500/30 text-red-400 text-[10px] hover:bg-red-500/30 transition-colors"
+                          >
+                            <Trash2 size={11} />刪除
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ))}
 
-                {/* 新增按鈕 */}
-                <button
-                  onClick={() => setShowUpload(true)}
-                  className="aspect-square rounded-xl border-2 border-dashed border-white/15 flex items-center justify-center hover:border-fuchsia-500/40 hover:bg-fuchsia-500/5 transition-all"
-                >
-                  <Plus size={24} className="text-gray-600" />
-                </button>
+                {/* 新增按鈕（非編輯模式才顯示）*/}
+                {!editMode && (
+                  <button
+                    onClick={() => setShowUpload(true)}
+                    className="aspect-square rounded-xl border-2 border-dashed border-white/15 flex items-center justify-center hover:border-fuchsia-500/40 hover:bg-fuchsia-500/5 transition-all"
+                  >
+                    <Plus size={24} className="text-gray-600" />
+                  </button>
+                )}
               </div>
             </div>
           )
