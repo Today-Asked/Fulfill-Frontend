@@ -2,7 +2,7 @@ import { useState } from "react";
 import { supabase } from "./supabase";
 
 interface UploadOptions {
-  folder?: "artworks" | "avatars" | "references";
+  folder?: "artworks" | "avatars" | "references" | "chat";
 }
 
 interface UploadResult {
