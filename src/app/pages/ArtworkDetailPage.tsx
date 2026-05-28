@@ -177,8 +177,9 @@ export function ArtworkDetailPage() {
       {/* Info — 黑底白字，置中 */}
       <div className="px-6 pt-6 pb-2">
 
-        {/* Title + heart */}
-        <div className="flex items-start justify-between gap-4 mb-2">
+        {/* Title + heart — 左側 spacer 與愛心等寬，讓標題真正置中 */}
+        <div className="flex items-start mb-2">
+          <div className="w-9 flex-shrink-0" />
           <h1
             className="flex-1 text-center text-3xl font-bold text-white leading-snug"
             style={{ fontFamily: "'Playfair Display', serif" }}
@@ -187,7 +188,7 @@ export function ArtworkDetailPage() {
           </h1>
           <button
             onClick={handleToggleLike}
-            className="mt-1 flex-shrink-0 active:scale-90 transition-transform"
+            className="mt-1 w-9 flex-shrink-0 flex justify-end active:scale-90 transition-transform"
             aria-label={isLiked ? "取消喜愛" : "加入喜愛"}
           >
             <Heart
