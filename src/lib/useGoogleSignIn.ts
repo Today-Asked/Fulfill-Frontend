@@ -27,6 +27,19 @@ declare global {
   }
 }
 
+/** Generate a cryptographically random nonce and return both the raw value
+ *  and its SHA-256 hex digest. GIS receives the hash; Supabase receives the raw. */
+async function generateNonce(): Promise<{ raw: string; hashed: string }> {
+  const array = new Uint8Array(32);
+  crypto.getRandomValues(array);
+  const raw = btoa(String.fromCharCode(...array));
+  const hashBuffer = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(raw));
+  const hashed = Array.from(new Uint8Array(hashBuffer))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+  return { raw, hashed };
+}
+
 /**
  * Returns a stable callback that triggers Google sign-in via the
  * Google Identity Services SDK (id_token flow — no redirects, no *.supabase.co).
@@ -40,18 +53,22 @@ export function useGoogleSignIn(
   onSuccess: () => void,
   onError: (message: string) => void
 ) {
-  const signIn = useCallback(() => {
+  const signIn = useCallback(async () => {
     if (!window.google) {
       onError("Google sign-in is not ready yet — please refresh and try again.");
       return;
     }
 
+    const { raw, hashed } = await generateNonce();
+
     window.google.accounts.id.initialize({
       client_id: GOOGLE_CLIENT_ID,
+      nonce: hashed,
       callback: async (response: GisCredentialResponse) => {
         const { error } = await supabase.auth.signInWithIdToken({
           provider: "google",
           token: response.credential,
+          nonce: raw,
         });
         if (error) {
           onError(error.message);
