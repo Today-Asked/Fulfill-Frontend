@@ -3,6 +3,7 @@ import { useNavigate, Link } from "react-router";
 import { Eye, EyeOff } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import { translateAuthError } from "../../lib/authErrors";
+import { useGoogleSignIn } from "../../lib/useGoogleSignIn";
 
 export function RegisterPage() {
   const navigate = useNavigate();
@@ -28,14 +29,10 @@ export function RegisterPage() {
     setSuccess(true);
   }
 
-  async function handleGoogleLogin() {
-    setError(null);
-    const { error: oauthError } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: { redirectTo: window.location.origin },
-    });
-    if (oauthError) setError(translateAuthError(oauthError.message));
-  }
+  const handleGoogleLogin = useGoogleSignIn(
+    () => navigate("/"),
+    (msg) => setError(translateAuthError(msg))
+  );
 
   if (success) {
     return (
