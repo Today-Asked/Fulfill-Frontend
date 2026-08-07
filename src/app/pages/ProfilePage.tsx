@@ -5,6 +5,7 @@ import {
   ChevronRight, Image, Bookmark,
   Heart, Lock, Camera, Trash2,
   EyeOff, Eye, Pencil, Check,
+  BriefcaseBusiness,
 } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
 import { supabase } from "../../lib/supabase";
@@ -144,7 +145,7 @@ export function ProfilePage() {
   const isArtworkTab  = activeTab === artworkTabIdx && artist != null;
 
   return (
-    <div className="h-full flex flex-col bg-[#0a0a0f] overflow-hidden">
+    <div className="h-full flex flex-col bg-[#141414] overflow-hidden">
       {/* Top bar */}
       <div className="flex items-center justify-between px-5 pt-12 pb-3 flex-shrink-0">
         <div className="flex items-center gap-2">
@@ -180,11 +181,11 @@ export function ProfilePage() {
               {/* Artist badge */}
               {artist && (
                 <div className="flex items-center gap-1.5 mt-1">
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-fuchsia-500/15 border border-fuchsia-500/30 text-fuchsia-300">
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-white/15 border border-white/30 text-white">
                     創作者
                   </span>
                   {artist.is_verified && (
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-cyan-500/15 border border-cyan-500/30 text-cyan-300">
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-white/15 border border-white/30 text-white">
                       已認證
                     </span>
                   )}
@@ -197,6 +198,19 @@ export function ProfilePage() {
             <ChevronRight size={13} className="text-gray-500" />
             <span className="text-gray-400 text-xs">檢視你的評價……</span>
           </button>
+
+          {artist && (
+            <button
+              onClick={() => navigate("/profile/commission")}
+              className="mb-4 flex w-full items-center justify-between border border-white/12 bg-white/[0.035] px-4 py-3 text-left transition-colors hover:border-white/25"
+            >
+              <span className="flex items-center gap-3">
+                <BriefcaseBusiness size={18} className="text-white/65" />
+                <span><strong className="block text-sm font-medium text-white">接案資料與發布</strong><span className="mt-0.5 block text-xs text-white/35">設定服務、預算、檔期與公開狀態</span></span>
+              </span>
+              <ChevronRight size={16} className="text-white/30" />
+            </button>
+          )}
 
           {!profile?.bio && !editingBio && (
             <button
@@ -216,14 +230,14 @@ export function ProfilePage() {
                 rows={3}
                 maxLength={160}
                 placeholder="簡單介紹一下自己…"
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-fuchsia-500/40 transition-all resize-none"
+                className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-white/40 transition-all resize-none"
               />
               <p className="text-gray-600 text-[10px] text-right mt-0.5">{bioInput.length} / 160</p>
               <div className="flex gap-2 mt-2">
                 <button
                   onClick={handleSaveBio}
                   disabled={savingBio}
-                  className="flex-1 py-2 rounded-xl bg-fuchsia-500/20 border border-fuchsia-500/30 text-fuchsia-300 text-xs hover:bg-fuchsia-500/30 transition-colors disabled:opacity-50"
+                  className="flex-1 py-2 rounded-xl bg-white/20 border border-white/30 text-white text-xs hover:bg-white/30 transition-colors disabled:opacity-50"
                 >
                   {savingBio ? "儲存中…" : "儲存"}
                 </button>
@@ -308,7 +322,7 @@ export function ProfilePage() {
                   onClick={() => setEditMode((v) => !v)}
                   className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs border transition-colors ${
                     editMode
-                      ? "bg-fuchsia-500/20 border-fuchsia-500/40 text-fuchsia-300"
+                      ? "bg-white/20 border-white/40 text-white"
                       : "bg-white/5 border-white/10 text-gray-400"
                   }`}
                 >
@@ -386,7 +400,7 @@ export function ProfilePage() {
                 {!editMode && (
                   <button
                     onClick={() => setShowUpload(true)}
-                    className="aspect-square rounded-xl border-2 border-dashed border-white/15 flex items-center justify-center hover:border-fuchsia-500/40 hover:bg-fuchsia-500/5 transition-all"
+                    className="aspect-square rounded-xl border-2 border-dashed border-white/15 flex items-center justify-center hover:border-white/40 hover:bg-white/5 transition-all"
                   >
                     <Plus size={24} className="text-gray-600" />
                   </button>
@@ -473,7 +487,7 @@ export function ProfilePage() {
       {/* Delete confirm sheet */}
       {showDeleteConfirm && (
         <div className="absolute inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
-          <div className="w-full bg-[#111116] border border-white/10 rounded-t-3xl px-6 pt-6 pb-10 flex flex-col gap-4">
+          <div className="w-full bg-[#111111] border border-white/10 rounded-t-3xl px-6 pt-6 pb-10 flex flex-col gap-4">
             <div className="w-10 h-1 rounded-full bg-white/20 mx-auto mb-2" />
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-red-500/15 flex items-center justify-center shrink-0">

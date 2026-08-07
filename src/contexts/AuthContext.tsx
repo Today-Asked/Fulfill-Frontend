@@ -28,13 +28,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
 
   const checkProfile = useCallback(async (uid: string) => {
-    const { data } = await supabase
-      .from("users")
-      .select("username")
-      .eq("id", uid)
-      .single();
-    setNeedsOnboarding(!data?.username);
-    setProfileChecked(true);
+    try {
+      const { data, error } = await supabase
+        .from("users")
+        .select("username")
+        .eq("id", uid)
+        .maybeSingle();
+      if (error) throw error;
+      setNeedsOnboarding(!data?.username);
+      setProfileChecked(true);
+    } catch (error) {
+      console.error("Unable to check profile", error);
+      setNeedsOnboarding(false);
+      setProfileChecked(true);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   const refreshProfile = useCallback(async () => {
@@ -52,7 +61,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } else {
         setLoading(false);
       }
-    });
+    }).catch(() => setLoading(false));
 
     // 監聽後續狀態變化
     const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {

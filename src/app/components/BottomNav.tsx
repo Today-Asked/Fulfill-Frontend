@@ -12,6 +12,11 @@ const navItems = [
   { icon: UserCircle2,   label: "我",   path: "/profile" },
 ];
 
+/**
+ * Mobile navigation. Now fixed to the viewport rather than absolutely
+ * positioned inside the old phone frame, and hidden on desktop where TopNav
+ * covers the same destinations.
+ */
 export function BottomNav() {
   const navigate  = useNavigate();
   const location  = useLocation();
@@ -30,8 +35,8 @@ export function BottomNav() {
   }, [user, location.pathname]);
 
   return (
-    <div className="absolute bottom-0 left-0 right-0 pb-6 pt-2 px-6 z-50 pointer-events-none">
-      <div className="flex justify-between items-center bg-black/70 backdrop-blur-2xl border border-white/10 rounded-full px-5 py-3 pointer-events-auto">
+    <div className="pointer-events-none fixed inset-x-0 bottom-0 z-50 px-6 pb-6 pt-2 lg:hidden">
+      <div className="pointer-events-auto mx-auto flex max-w-[420px] items-center justify-between rounded-full border border-white/10 bg-black/70 px-5 py-3 backdrop-blur-2xl">
         {navItems.map((item) => {
           const isActive =
             item.path === "/"
@@ -45,7 +50,8 @@ export function BottomNav() {
               <button
                 key={item.path}
                 onClick={() => navigate(item.path)}
-                className="w-11 h-11 rounded-full bg-[#f9a8d4] flex items-center justify-center shadow-md shadow-pink-400/25 hover:bg-[#f472b6] active:scale-95 transition-all -mt-6"
+                aria-label={item.label}
+                className="-mt-6 flex h-11 w-11 items-center justify-center rounded-full bg-paper shadow-md shadow-white/20 transition-all hover:bg-brand-muted active:scale-95"
               >
                 <Plus size={20} strokeWidth={2.5} className="text-black" />
               </button>
@@ -56,6 +62,8 @@ export function BottomNav() {
             <button
               key={item.path}
               onClick={() => navigate(item.path)}
+              aria-label={item.label}
+              aria-current={isActive ? "page" : undefined}
               className={`flex flex-col items-center gap-0.5 transition-all ${
                 isActive ? "text-white" : "text-white/35 hover:text-white/60"
               }`}
@@ -63,12 +71,10 @@ export function BottomNav() {
               <div className="relative">
                 <item.icon size={22} strokeWidth={isActive ? 2 : 1.5} />
                 {isChat && hasUnread && !isActive && (
-                  <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-[#f9a8d4] border border-black" />
+                  <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full border border-black bg-paper" />
                 )}
               </div>
-              {isActive && (
-                <span className="w-1 h-1 rounded-full bg-[#f9a8d4]" />
-              )}
+              {isActive && <span className="h-1 w-1 rounded-full bg-paper" />}
             </button>
           );
         })}

@@ -40,7 +40,7 @@ export function RegisterPage() {
   if (success) {
     return (
       <div className="flex flex-col items-center justify-center h-full bg-black px-8 gap-6">
-        <div className="w-20 h-20 rounded-full bg-[#f9a8d4] flex items-center justify-center text-black text-2xl font-bold shadow-lg shadow-pink-400/30">
+        <div className="w-20 h-20 rounded-full bg-[#FFFFFF] flex items-center justify-center text-black text-2xl font-bold shadow-lg shadow-white/30">
           ✓
         </div>
         <div className="text-center">
@@ -90,7 +90,7 @@ export function RegisterPage() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="example@gmail.com"
-            className="w-full bg-white rounded-xl px-4 py-3.5 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-pink-300 transition-all"
+            className="w-full bg-white rounded-xl px-4 py-3.5 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-white transition-all"
           />
         </div>
 
@@ -106,7 +106,7 @@ export function RegisterPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="至少 6 個字元"
-              className="w-full bg-white rounded-xl px-4 py-3.5 pr-11 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-pink-300 transition-all"
+              className="w-full bg-white rounded-xl px-4 py-3.5 pr-11 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-white transition-all"
             />
             <button
               type="button"
@@ -128,7 +128,7 @@ export function RegisterPage() {
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
             placeholder="再輸入一次密碼"
-            className="w-full bg-white rounded-xl px-4 py-3.5 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-pink-300 transition-all"
+            className="w-full bg-white rounded-xl px-4 py-3.5 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-white transition-all"
           />
         </div>
 
@@ -144,7 +144,7 @@ export function RegisterPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-20 h-20 rounded-full bg-[#f9a8d4] text-black font-semibold text-sm hover:bg-[#f472b6] active:scale-95 transition-all shadow-lg shadow-pink-400/30 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-20 h-20 rounded-full bg-[#FFFFFF] text-black font-semibold text-sm hover:bg-[#C4C4C4] active:scale-95 transition-all shadow-lg shadow-white/30 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? "…" : "建立帳號"}
           </button>
@@ -191,7 +191,7 @@ export function RegisterPage() {
         {/* Footer link */}
         <p className="text-center text-sm text-gray-500 mt-auto pt-4">
           Already have an account?{" "}
-          <Link to="/login" className="text-white font-medium hover:text-pink-300 transition-colors">
+          <Link to="/login" className="text-white font-medium hover:text-white transition-colors">
             Log in
           </Link>
         </p>

@@ -1,1 +1,4 @@
+/* Playfair is still used for artwork titles on the detail page, so it stays.
+   The rest of the interface moves to the brand stack. */
 @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;800;900&family=Cormorant+Garamond:wght@600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700&family=Fascinate&family=Noto+Sans+TC:wght@400;500;700&display=swap');

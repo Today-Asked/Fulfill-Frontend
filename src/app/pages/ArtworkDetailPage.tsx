@@ -140,7 +140,7 @@ export function ArtworkDetailPage() {
       <div className="h-full bg-black flex flex-col items-center justify-center gap-4">
         <ImageOff size={36} className="text-white/20" />
         <p className="text-gray-500 text-sm">找不到這件作品</p>
-        <button onClick={() => navigate(-1)} className="text-[#f9a8d4] text-sm underline underline-offset-2">
+        <button onClick={() => navigate(-1)} className="text-[#FFFFFF] text-sm underline underline-offset-2">
           返回上一頁
         </button>
       </div>
@@ -194,7 +194,7 @@ export function ArtworkDetailPage() {
             <Heart
               size={26}
               strokeWidth={1.6}
-              className={`transition-colors ${isLiked ? "text-[#f9a8d4] fill-[#f9a8d4]" : "text-white/30 hover:text-[#f9a8d4]"}`}
+              className={`transition-colors ${isLiked ? "text-[#FFFFFF] fill-[#FFFFFF]" : "text-white/30 hover:text-[#FFFFFF]"}`}
             />
           </button>
         </div>

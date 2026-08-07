@@ -1,0 +1,68 @@
+/**
+ * Monochrome brand layer. Imported after theme.css so it wins.
+ *
+ * Values come straight from the Figma file: pure black canvas, white type,
+ * #C4C4C4 for secondary text, #D8DADC for input borders, 20px card radius.
+ */
+
+:root {
+  /* Brand scale */
+  --brand-ink: #000000;
+  --brand-paper: #ffffff;
+  --brand-muted: #c4c4c4;
+  --brand-line: #d8dadc;
+  --brand-surface: #141414;
+  --brand-surface-alt: #1e1e1e;
+
+  /* shadcn tokens realigned to the dark canvas so its components stop
+     rendering white-on-white. */
+  --background: #000000;
+  --foreground: #ffffff;
+  --card: #141414;
+  --card-foreground: #ffffff;
+  --popover: #141414;
+  --popover-foreground: #ffffff;
+  --primary: #ffffff;
+  --primary-foreground: #000000;
+  --secondary: #1e1e1e;
+  --secondary-foreground: #ffffff;
+  --muted: #1e1e1e;
+  --muted-foreground: #c4c4c4;
+  --accent: #1e1e1e;
+  --accent-foreground: #ffffff;
+  --border: rgba(255, 255, 255, 0.12);
+  --input: rgba(255, 255, 255, 0.12);
+  --input-background: #1e1e1e;
+  --switch-background: #3a3a3a;
+  --ring: rgba(255, 255, 255, 0.6);
+  --radius: 1.25rem;
+}
+
+@theme inline {
+  --color-ink: var(--brand-ink);
+  --color-paper: var(--brand-paper);
+  --color-brand-muted: var(--brand-muted);
+  --color-line: var(--brand-line);
+  --color-surface: var(--brand-surface);
+  --color-surface-alt: var(--brand-surface-alt);
+
+  --font-sans: 'Inter', 'Noto Sans TC', system-ui, sans-serif;
+  --font-display: 'Poppins', 'Inter', sans-serif;
+  --font-brand: 'Fascinate', 'Poppins', cursive;
+
+  --radius-card: 20px;
+  --radius-pill: 29.5px;
+}
+
+body {
+  background-color: var(--brand-ink);
+  color: var(--brand-paper);
+  font-family: var(--font-sans);
+}
+
+/* The neon theme relied on coloured focus rings. Monochrome needs a visible
+   one or keyboard users lose track of where they are. */
+:focus-visible {
+  outline: 2px solid #ffffff;
+  outline-offset: 2px;
+}

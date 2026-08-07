@@ -41,6 +41,26 @@
   --sidebar-ring: oklch(0.708 0 0);
 }
 
+@layer components {
+  .input {
+    width: 100%;
+    min-height: 3rem;
+    border: 1px solid rgb(255 255 255 / 0.15);
+    background: #000;
+    padding: 0.75rem;
+    color: #fff;
+    outline: none;
+  }
+
+  .input:focus {
+    border-color: rgb(255 255 255 / 0.4);
+  }
+
+  .input::placeholder {
+    color: rgb(255 255 255 / 0.28);
+  }
+}
+
 .dark {
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);

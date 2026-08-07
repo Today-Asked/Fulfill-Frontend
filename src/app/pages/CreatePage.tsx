@@ -49,7 +49,7 @@ export function CreatePage() {
   }
 
   return (
-    <div className="h-full overflow-y-auto pb-28 [&::-webkit-scrollbar]:hidden bg-[#0a0a0f]">
+    <div className="h-full overflow-y-auto pb-28 [&::-webkit-scrollbar]:hidden bg-[#141414]">
       {/* Header */}
       <div className="px-5 pt-12 pb-5">
         <div className="flex items-center justify-between">
@@ -57,8 +57,8 @@ export function CreatePage() {
             <p className="text-gray-500 text-xs tracking-widest mb-0.5">CREATE</p>
             <h1 className="text-white text-xl font-semibold">新增委託需求</h1>
           </div>
-          <div className="px-3 py-1.5 bg-fuchsia-500/15 border border-fuchsia-500/30 rounded-full">
-            <span className="text-fuchsia-300 text-xs font-medium">委託單</span>
+          <div className="px-3 py-1.5 bg-white/15 border border-white/30 rounded-full">
+            <span className="text-white text-xs font-medium">委託單</span>
           </div>
         </div>
       </div>
@@ -76,7 +76,7 @@ export function CreatePage() {
         <div
           onClick={() => !uploading && fileInputRef.current?.click()}
           className={`w-full h-44 rounded-2xl border-2 border-dashed flex flex-col items-center justify-center gap-2 transition-all relative overflow-hidden
-            ${uploading ? "cursor-wait border-fuchsia-500/40 bg-fuchsia-500/5" : "cursor-pointer hover:border-fuchsia-500/40 hover:bg-fuchsia-500/5 border-white/15"}`}
+            ${uploading ? "cursor-wait border-white/40 bg-white/5" : "cursor-pointer hover:border-white/40 hover:bg-white/5 border-white/15"}`}
         >
           {/* 預覽圖 */}
           {previewUrl && (
@@ -87,7 +87,7 @@ export function CreatePage() {
               {/* 上傳中 overlay */}
               {uploading && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/50">
-                  <Loader2 size={24} className="text-fuchsia-400 animate-spin" />
+                  <Loader2 size={24} className="text-white animate-spin" />
                   <p className="text-white text-xs">{progress}%</p>
                 </div>
               )}
@@ -113,7 +113,7 @@ export function CreatePage() {
           {/* 空狀態 */}
           {!previewUrl && !uploadError && (
             <>
-              <div className="w-10 h-10 rounded-full bg-white/6 flex items-center justify-center group-hover:bg-fuchsia-500/15 transition-colors">
+              <div className="w-10 h-10 rounded-full bg-white/6 flex items-center justify-center group-hover:bg-white/15 transition-colors">
                 <ImagePlus size={20} className="text-gray-500" />
               </div>
               <p className="text-gray-500 text-xs">點擊上傳參考圖</p>
@@ -141,7 +141,7 @@ export function CreatePage() {
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="例：A4 社團活動海報設計"
-            className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-fuchsia-500/40 focus:bg-white/8 transition-all placeholder:text-gray-600"
+            className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-white/40 focus:bg-white/8 transition-all placeholder:text-gray-600"
           />
         </div>
 
@@ -156,7 +156,7 @@ export function CreatePage() {
             onChange={(e) => setDesc(e.target.value)}
             placeholder="描述你的作品需求、風格偏好、色彩方向等..."
             rows={4}
-            className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-fuchsia-500/40 focus:bg-white/8 transition-all placeholder:text-gray-600 resize-none"
+            className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-white/40 focus:bg-white/8 transition-all placeholder:text-gray-600 resize-none"
           />
         </div>
 
@@ -172,7 +172,7 @@ export function CreatePage() {
               value={budget}
               onChange={(e) => setBudget(e.target.value)}
               placeholder="1000"
-              className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-fuchsia-500/40 focus:bg-white/8 transition-all placeholder:text-gray-600"
+              className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-white/40 focus:bg-white/8 transition-all placeholder:text-gray-600"
             />
           </div>
           <div className="flex-1">
@@ -184,7 +184,7 @@ export function CreatePage() {
               type="date"
               value={deadline}
               onChange={(e) => setDeadline(e.target.value)}
-              className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-fuchsia-500/40 focus:bg-white/8 transition-all [color-scheme:dark]"
+              className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-white/40 focus:bg-white/8 transition-all [color-scheme:dark]"
             />
           </div>
         </div>
@@ -195,8 +195,8 @@ export function CreatePage() {
           <div className="space-y-3">
             {steps.map((step, idx) => (
               <div key={idx} className="flex items-center gap-3">
-                <div className="w-7 h-7 rounded-full bg-gradient-to-br from-violet-500/30 to-fuchsia-500/30 border border-fuchsia-500/20 flex items-center justify-center flex-shrink-0">
-                  <span className="text-fuchsia-300 text-[9px] font-bold">{step.num}</span>
+                <div className="w-7 h-7 rounded-full bg-white/10 border border-white/20 flex items-center justify-center flex-shrink-0">
+                  <span className="text-white text-[9px] font-bold">{step.num}</span>
                 </div>
                 <div>
                   <p className="text-gray-200 text-xs font-medium">{step.title}</p>
@@ -210,7 +210,7 @@ export function CreatePage() {
         {/* Submit Button */}
         <button
           disabled={uploading}
-          className="w-full py-4 rounded-2xl bg-gradient-to-r from-violet-500 via-fuchsia-500 to-cyan-400 text-white font-semibold text-sm shadow-[0_0_20px_rgba(217,70,239,0.3)] hover:shadow-[0_0_30px_rgba(217,70,239,0.4)] transition-shadow disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full py-4 rounded-2xl bg-white/10 text-white font-semibold text-sm shadow-[0_0_20px_rgba(255,255,255,0.12)] hover:shadow-[0_0_30px_rgba(255,255,255,0.18)] transition-shadow disabled:opacity-50 disabled:cursor-not-allowed"
         >
           發佈委託需求
         </button>

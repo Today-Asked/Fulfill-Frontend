@@ -62,7 +62,7 @@ export function ArtworkUploadSheet({ artistProfileId, onClose, onUploaded }: Art
 
   return (
     <div className="absolute inset-0 z-50 flex items-end bg-black/60 backdrop-blur-sm">
-      <div className="w-full bg-[#111116] border-t border-white/10 rounded-t-3xl px-5 pt-5 pb-28 flex flex-col gap-4 max-h-[90%] overflow-y-auto">
+      <div className="w-full bg-[#111111] border-t border-white/10 rounded-t-3xl px-5 pt-5 pb-28 flex flex-col gap-4 max-h-[90%] overflow-y-auto">
         {/* Handle + header */}
         <div className="w-10 h-1 rounded-full bg-white/20 mx-auto mb-1" />
         <div className="flex items-center justify-between">
@@ -84,7 +84,7 @@ export function ArtworkUploadSheet({ artistProfileId, onClose, onUploaded }: Art
           <div
             onClick={() => !uploading && fileInputRef.current?.click()}
             className={`w-full h-40 rounded-2xl border-2 border-dashed flex flex-col items-center justify-center gap-2 relative overflow-hidden transition-all
-              ${uploading ? "cursor-wait border-fuchsia-500/40" : "cursor-pointer hover:border-fuchsia-500/40 hover:bg-fuchsia-500/5 border-white/15"}`}
+              ${uploading ? "cursor-wait border-white/40" : "cursor-pointer hover:border-white/40 hover:bg-white/5 border-white/15"}`}
           >
             {previewUrl ? (
               <>
@@ -92,7 +92,7 @@ export function ArtworkUploadSheet({ artistProfileId, onClose, onUploaded }: Art
                 <div className="absolute inset-0 bg-black/30" />
                 {uploading && (
                   <div className="absolute inset-0 flex items-center justify-center bg-black/50">
-                    <Loader2 size={24} className="text-fuchsia-400 animate-spin" />
+                    <Loader2 size={24} className="text-white animate-spin" />
                   </div>
                 )}
                 {!uploading && coverUrl && (
@@ -112,7 +112,7 @@ export function ArtworkUploadSheet({ artistProfileId, onClose, onUploaded }: Art
           {/* 標題 */}
           <div className="flex flex-col gap-1.5">
             <label className="text-xs text-gray-400 font-medium tracking-wide uppercase">
-              標題 <span className="text-fuchsia-500">*</span>
+              標題 <span className="text-white">*</span>
             </label>
             <input
               type="text"
@@ -121,7 +121,7 @@ export function ArtworkUploadSheet({ artistProfileId, onClose, onUploaded }: Art
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="作品名稱"
-              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-fuchsia-500/60 transition-all"
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-white/60 transition-all"
             />
           </div>
 
@@ -137,7 +137,7 @@ export function ArtworkUploadSheet({ artistProfileId, onClose, onUploaded }: Art
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="介紹這件作品…"
-              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-fuchsia-500/60 transition-all resize-none"
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-white/60 transition-all resize-none"
             />
           </div>
 
@@ -150,7 +150,7 @@ export function ArtworkUploadSheet({ artistProfileId, onClose, onUploaded }: Art
           <button
             type="submit"
             disabled={uploading || saving || !coverUrl}
-            className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-violet-600 via-fuchsia-600 to-cyan-500 text-white text-sm font-semibold shadow-lg shadow-fuchsia-500/25 hover:opacity-90 transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            className="w-full py-3.5 rounded-2xl bg-white/10 text-white text-sm font-semibold shadow-lg shadow-white/25 hover:opacity-90 transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
             {saving ? <><Loader2 size={16} className="animate-spin" />儲存中…</> : "發佈作品"}
           </button>

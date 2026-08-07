@@ -15,6 +15,9 @@ import { WelcomePage } from "./pages/WelcomePage";
 import { CreatorProfilePage } from "./pages/CreatorProfilePage";
 import { ArtworkDetailPage } from "./pages/ArtworkDetailPage";
 import { NotificationsPage } from "./pages/NotificationsPage";
+import { InvitePage } from "./pages/InvitePage";
+import { SearchPage } from "./pages/SearchPage";
+import { CommissionProfilePage } from "./pages/CommissionProfilePage";
 
 export const router = createBrowserRouter([
   {
@@ -24,12 +27,15 @@ export const router = createBrowserRouter([
       { index: true, Component: HomePage },
       { path: "artwork/:id", Component: ArtworkDetailPage },
       { path: "creator/:id", Component: CreatorProfilePage },
+      { path: "invite/:artistId", Component: InvitePage },
+      { path: "search", Component: SearchPage },
       { path: "chat", Component: ChatListPage },
       { path: "chat/:id", Component: ChatRoomPage },
       { path: "create", Component: CreatePage },
       { path: "notifications", Component: NotificationsPage },
       { path: "orders", Component: OrdersPage },
       { path: "profile", Component: ProfilePage },
+      { path: "profile/commission", Component: CommissionProfilePage },
       { path: "register", Component: RegisterPage },
       { path: "welcome", Component: WelcomePage },
       { path: "login", Component: LoginPage },

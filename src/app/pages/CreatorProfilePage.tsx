@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router";
-import { ArrowLeft, Heart, ImageOff } from "lucide-react";
+import { ArrowLeft, Heart, ImageOff, MoreHorizontal, Send } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import { useAuth } from "../../contexts/AuthContext";
 import { getOrCreateConversation } from "../../lib/chat";
+import { submitReport, toggleBlock, type ReportReason } from "../../lib/creators";
 
 interface CreatorProfile {
   userId: string;
@@ -32,6 +33,7 @@ export function CreatorProfilePage() {
   const [notFound, setNotFound] = useState(false);
   const [isFollowing, setIsFollowing] = useState(false);
   const [followerCount, setFollowerCount] = useState(0);
+  const [showSafety, setShowSafety] = useState(false);
 
   useEffect(() => {
     if (!usernameParam) return;
@@ -124,7 +126,7 @@ export function CreatorProfilePage() {
 
   if (loading) {
     return (
-      <div className="h-full bg-[#0a0a0f] overflow-y-auto pb-28 [&::-webkit-scrollbar]:hidden animate-pulse">
+      <div className="h-full bg-[#141414] overflow-y-auto pb-28 [&::-webkit-scrollbar]:hidden animate-pulse">
         <div className="px-6 pt-12 pb-6">
           <div className="w-10 h-10 rounded-full bg-white/8 mb-6" />
           <div className="flex items-center gap-4 mb-6">
@@ -143,11 +145,11 @@ export function CreatorProfilePage() {
 
   if (notFound || !profile) {
     return (
-      <div className="h-full bg-[#0a0a0f] flex flex-col items-center justify-center gap-4">
+      <div className="h-full bg-[#141414] flex flex-col items-center justify-center gap-4">
         <p className="text-gray-400 text-sm">找不到這位創作者</p>
         <button
           onClick={() => navigate(-1)}
-          className="text-fuchsia-400 text-sm underline underline-offset-2"
+          className="text-white text-sm underline underline-offset-2"
         >
           返回上一頁
         </button>
@@ -158,7 +160,7 @@ export function CreatorProfilePage() {
   const isOwnProfile = user?.id === profile.userId;
 
   return (
-    <div className="h-full overflow-y-auto pb-28 [&::-webkit-scrollbar]:hidden bg-[#0a0a0f]">
+    <div className="h-full overflow-y-auto pb-28 [&::-webkit-scrollbar]:hidden bg-[#141414]">
       {/* Header */}
       <div className="px-6 pt-12 pb-6">
         <button
@@ -196,14 +198,23 @@ export function CreatorProfilePage() {
             編輯個人頁
           </button>
         ) : (
-          <div className="flex gap-3">
+          <div className="grid grid-cols-[1fr_1fr_auto_auto] gap-3">
+            <button
+              onClick={() => {
+                if (!user) { navigate("/login"); return; }
+                navigate(`/invite/${profile.artistId}`);
+              }}
+              className="flex items-center justify-center gap-2 rounded-xl bg-white py-3 font-semibold text-black transition-opacity hover:opacity-90"
+            >
+              <Send size={16} />合作邀請
+            </button>
             <button
               onClick={async () => {
                 if (!user) { navigate("/login"); return; }
                 const convId = await getOrCreateConversation(user.id, profile.userId);
                 if (convId) navigate(`/chat/${convId}`);
               }}
-              className="flex-1 py-3 rounded-xl bg-gradient-to-r from-pink-400/80 via-fuchsia-400/70 to-pink-300/80 backdrop-blur-xl text-white font-semibold hover:opacity-90 transition-opacity shadow-[inset_0_2px_8px_rgba(255,255,255,0.4),0_4px_16px_rgba(236,72,153,0.5)] border border-white/30"
+              className="flex-1 py-3 rounded-xl bg-white/10 backdrop-blur-xl text-white font-semibold hover:opacity-90 transition-opacity shadow-[inset_0_2px_8px_rgba(255,255,255,0.24),0_4px_16px_rgba(255,255,255,0.12)] border border-white/30"
             >
               聊聊
             </button>
@@ -222,6 +233,13 @@ export function CreatorProfilePage() {
               {followerCount > 0 && (
                 <span className="text-[8px] text-gray-400 mt-0.5 leading-none">{followerCount}</span>
               )}
+            </button>
+            <button
+              onClick={() => { if (!user) { navigate('/login'); return; } setShowSafety(true); }}
+              aria-label="更多安全選項"
+              className="grid h-12 w-12 place-items-center rounded-xl border border-white/20 bg-white/10 text-white/60 hover:text-white"
+            >
+              <MoreHorizontal size={18} />
             </button>
           </div>
         )}
@@ -274,8 +292,28 @@ export function CreatorProfilePage() {
           </div>
         )}
       </div>
+      {showSafety && user && (
+        <SafetyDialog
+          creatorName={profile.name ?? profile.username ?? "這位創作者"}
+          targetId={profile.userId}
+          reporterId={user.id}
+          onClose={() => setShowSafety(false)}
+          onBlocked={() => navigate('/search')}
+        />
+      )}
     </div>
   );
+}
+
+function SafetyDialog({ creatorName, targetId, reporterId, onClose, onBlocked }: { creatorName: string; targetId: string; reporterId: string; onClose: () => void; onBlocked: () => void }) {
+  const [mode, setMode] = useState<'menu' | 'report'>('menu');
+  const [reason, setReason] = useState<ReportReason>('spam');
+  const [detail, setDetail] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  async function report() { setBusy(true); setError(''); try { await submitReport({ reporterId, targetType: 'creator', targetId, reason, detail: detail.trim() }); onClose(); } catch (e) { setError(e instanceof Error ? e.message : '檢舉送出失敗。'); setBusy(false); } }
+  async function block() { setBusy(true); setError(''); try { await toggleBlock(reporterId, targetId); onClose(); onBlocked(); } catch (e) { setError(e instanceof Error ? e.message : '封鎖失敗。'); setBusy(false); } }
+  return <div className="fixed inset-0 z-[70] grid place-items-center bg-black/75 p-5" role="dialog" aria-modal="true" aria-labelledby="safety-title"><div className="w-full max-w-md border border-white/15 bg-[#171717] p-6 shadow-2xl"><h2 id="safety-title" className="text-xl font-semibold">{mode === 'menu' ? '安全選項' : `檢舉 ${creatorName}`}</h2>{mode === 'menu' ? <div className="mt-5 grid gap-2"><button onClick={() => setMode('report')} className="border border-white/12 px-4 py-3 text-left text-sm text-white/70 hover:border-white/30">檢舉帳號或內容</button><button disabled={busy} onClick={() => void block()} className="border border-red-400/20 px-4 py-3 text-left text-sm text-red-200 hover:border-red-400/40">封鎖 {creatorName}</button><p className="mt-2 text-xs leading-5 text-white/35">封鎖後，對方會從你的創作者搜尋結果移除。</p></div> : <div className="mt-5 grid gap-4"><label className="text-sm text-white/60">原因<select value={reason} onChange={(e) => setReason(e.target.value as ReportReason)} className="input mt-2"><option value="impersonation">冒用身分</option><option value="stolen_work">盜用作品</option><option value="harassment">騷擾</option><option value="spam">垃圾訊息</option><option value="inappropriate">不當內容</option><option value="other">其他</option></select></label><label className="text-sm text-white/60">補充說明<textarea value={detail} onChange={(e) => setDetail(e.target.value)} maxLength={1000} rows={5} className="input mt-2 resize-none" /></label><button disabled={busy} onClick={() => void report()} className="bg-white px-4 py-3 text-sm font-semibold text-black disabled:opacity-40">送出檢舉</button></div>}{error && <p className="mt-4 text-sm text-red-300">{error}</p>}<button onClick={onClose} className="mt-5 text-sm text-white/45">取消</button></div></div>;
 }
 
 function ProfileAvatar({ url, name }: { url: string | null; name: string | null }) {
@@ -289,7 +327,7 @@ function ProfileAvatar({ url, name }: { url: string | null; name: string | null 
     );
   }
   return (
-    <div className="w-24 h-24 rounded-full bg-purple-900 border-4 border-white/20 flex items-center justify-center shrink-0">
+    <div className="w-24 h-24 rounded-full bg-white border-4 border-white/20 flex items-center justify-center shrink-0">
       <span className="text-white/70 text-3xl font-bold">
         {name?.[0]?.toUpperCase() ?? "?"}
       </span>

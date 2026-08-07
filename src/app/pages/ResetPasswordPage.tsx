@@ -71,7 +71,7 @@ export function ResetPasswordPage() {
         </div>
         <Link
           to="/forgot-password"
-          className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-violet-600 via-fuchsia-600 to-cyan-500 text-white text-sm font-semibold text-center shadow-lg shadow-fuchsia-500/25 hover:opacity-90 transition-all"
+          className="w-full py-3.5 rounded-2xl bg-white/10 text-white text-sm font-semibold text-center shadow-lg shadow-white/25 hover:opacity-90 transition-all"
         >
           重新申請
         </Link>
@@ -89,7 +89,7 @@ export function ResetPasswordPage() {
   if (pageState === "loading") {
     return (
       <div className="flex justify-center items-center h-full">
-        <div className="w-8 h-8 rounded-full border-2 border-fuchsia-500 border-t-transparent animate-spin" />
+        <div className="w-8 h-8 rounded-full border-2 border-white border-t-transparent animate-spin" />
       </div>
     );
   }
@@ -98,7 +98,7 @@ export function ResetPasswordPage() {
   return (
     <div className="flex flex-col h-full px-6 pt-16 pb-8">
       <div className="mb-10">
-        <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-violet-500 via-fuchsia-500 to-cyan-400 mb-6 shadow-lg shadow-fuchsia-500/30" />
+        <div className="w-10 h-10 rounded-2xl bg-white/10 mb-6 shadow-lg shadow-white/30" />
         <h1 className="text-2xl font-bold text-white mb-1">設定新密碼</h1>
         <p className="text-sm text-gray-500">請輸入你的新密碼</p>
       </div>
@@ -116,7 +116,7 @@ export function ResetPasswordPage() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="至少 6 個字元"
-            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-fuchsia-500/60 focus:bg-white/8 transition-all"
+            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-white/60 focus:bg-white/8 transition-all"
           />
         </div>
 
@@ -131,7 +131,7 @@ export function ResetPasswordPage() {
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
             placeholder="再輸入一次"
-            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-fuchsia-500/60 focus:bg-white/8 transition-all"
+            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-white/60 focus:bg-white/8 transition-all"
           />
         </div>
 
@@ -144,7 +144,7 @@ export function ResetPasswordPage() {
         <button
           type="submit"
           disabled={loading}
-          className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-violet-600 via-fuchsia-600 to-cyan-500 text-white text-sm font-semibold shadow-lg shadow-fuchsia-500/25 hover:opacity-90 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed mt-2"
+          className="w-full py-3.5 rounded-2xl bg-white/10 text-white text-sm font-semibold shadow-lg shadow-white/25 hover:opacity-90 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed mt-2"
         >
           {loading ? "更新中…" : "更新密碼"}
         </button>

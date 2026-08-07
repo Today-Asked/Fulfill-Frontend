@@ -197,7 +197,7 @@ export function ChatRoomPage() {
   const avatarUrl = otherUser?.avatar_url;
 
   return (
-    <div className="h-full flex flex-col bg-[#0a0a0f] relative">
+    <div className="h-full flex flex-col bg-[#141414] relative">
       {/* Hidden file input */}
       <input
         ref={fileInputRef}
@@ -334,7 +334,7 @@ export function ChatRoomPage() {
           onClick={() => setShowInfo(false)}
         >
           <div
-            className="w-full bg-[#111118] border-t border-white/8 rounded-t-3xl px-6 pt-5 pb-10 relative"
+            className="w-full bg-[#111111] border-t border-white/8 rounded-t-3xl px-6 pt-5 pb-10 relative"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="w-10 h-1 rounded-full bg-white/20 mx-auto mb-5" />

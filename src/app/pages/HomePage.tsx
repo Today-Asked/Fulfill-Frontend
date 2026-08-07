@@ -278,7 +278,7 @@ export function HomePage() {
   const slot = (i: number) => artworks[i];
 
   return (
-    <div className="h-full overflow-y-auto pb-28 [&::-webkit-scrollbar]:hidden bg-[#0a0a0f]">
+    <div className="h-full overflow-y-auto pb-28 [&::-webkit-scrollbar]:hidden bg-[#141414]">
       {/* Top bar */}
       <div className="px-5 pt-12 pb-3 flex items-center justify-between">
         <button
@@ -338,7 +338,7 @@ export function HomePage() {
               onClick={() => setActiveCat(idx)}
               className={`px-4 py-2 rounded-full text-xs font-medium whitespace-nowrap transition-all duration-200 ${
                 activeCat === idx
-                  ? "bg-gradient-to-r from-violet-500 via-fuchsia-500 to-cyan-400 text-white shadow-[0_0_12px_rgba(217,70,239,0.3)]"
+                  ? "bg-white/10 text-white shadow-[0_0_12px_rgba(255,255,255,0.12)]"
                   : "bg-white/5 border border-white/10 text-gray-400 hover:text-white hover:bg-white/8"
               }`}
             >
@@ -352,7 +352,7 @@ export function HomePage() {
       <div className="px-4 mb-6">
         <div className="flex justify-between items-center mb-3">
           <h2 className="text-sm font-semibold text-white tracking-wide">推薦創作者</h2>
-          <button className="text-xs text-fuchsia-400 flex items-center gap-0.5">
+          <button className="text-xs text-white flex items-center gap-0.5">
             全部 <ChevronRight size={12} />
           </button>
         </div>
@@ -371,7 +371,7 @@ export function HomePage() {
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="relative shrink-0">
                     <AvatarImg url={creator.avatar_url} name={creator.name} size={10} />
-                    <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-400 border-2 border-[#0a0a0f] rounded-full" />
+                    <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-400 border-2 border-[#141414] rounded-full" />
                   </div>
                   <div className="min-w-0">
                     <span className="text-white text-sm font-medium truncate block">
@@ -506,7 +506,7 @@ function SearchOverlay({
   onCreatorClick: (username: string | null) => void;
 }) {
   return (
-    <div className="absolute inset-0 z-50 bg-[#0a0a0f] flex flex-col">
+    <div className="absolute inset-0 z-50 bg-[#141414] flex flex-col">
       {/* Search bar */}
       <div className="flex items-center gap-3 px-4 pt-14 pb-3 border-b border-white/6">
         <div className="flex-1 flex items-center bg-white/8 border border-white/12 rounded-full px-4 h-11">
@@ -610,7 +610,7 @@ function AvatarImg({ url, name, size = 10 }: { url: string | null; name: string 
     return <img src={url} alt={name ?? ""} style={style} className="rounded-full object-cover border border-white/10 shrink-0" />;
   }
   return (
-    <div style={style} className="rounded-full bg-purple-900 border border-white/10 flex items-center justify-center shrink-0">
+    <div style={style} className="rounded-full bg-white border border-white/10 flex items-center justify-center shrink-0">
       <span className="text-white/70 text-sm font-bold">{name?.[0]?.toUpperCase() ?? "?"}</span>
     </div>
   );

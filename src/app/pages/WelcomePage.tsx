@@ -7,29 +7,13 @@ export function WelcomePage() {
   return (
     <div className="relative h-full flex flex-col items-center justify-between px-8 py-16 bg-black select-none overflow-hidden">
 
-      {/* Blob */}
+      {/* Brand mark */}
       <div className="flex-1 flex items-center justify-center">
-        <div className="relative w-48 h-48">
-          <div
-            className="absolute inset-0"
-            style={{
-              background:
-                "linear-gradient(135deg, #fecdd3 0%, #f9a8d4 18%, #e879f9 46%, #818cf8 72%, #7dd3fc 100%)",
-              borderRadius: "71% 29% 62% 38% / 39% 58% 42% 61%",
-              boxShadow:
-                "inset -10px -10px 20px rgba(0,0,0,0.25), inset 8px 8px 14px rgba(255,255,255,0.35), 0 12px 40px rgba(249,168,212,0.35)",
-            }}
-          />
-          {/* Gloss highlight */}
-          <div
-            className="absolute inset-0"
-            style={{
-              background:
-                "radial-gradient(ellipse at 32% 28%, rgba(255,255,255,0.55) 0%, transparent 52%)",
-              borderRadius: "71% 29% 62% 38% / 39% 58% 42% 61%",
-            }}
-          />
-        </div>
+        <img
+          src="/logo-mark.png"
+          alt="FULFILL ㄈㄈ標誌"
+          className="h-auto w-52 object-contain sm:w-56"
+        />
       </div>
 
       {/* Brand */}
@@ -50,7 +34,7 @@ export function WelcomePage() {
         {/* 登入 – solid pink circle */}
         <button
           onClick={() => navigate("/login")}
-          className="w-24 h-24 rounded-full bg-[#f9a8d4] text-black font-semibold text-base hover:bg-[#f472b6] active:scale-95 transition-all shadow-lg shadow-pink-400/30"
+          className="w-24 h-24 rounded-full bg-[#FFFFFF] text-black font-semibold text-base hover:bg-[#C4C4C4] active:scale-95 transition-all shadow-lg shadow-white/30"
         >
           登入
         </button>
@@ -58,7 +42,7 @@ export function WelcomePage() {
         {/* 註冊 – outlined circle */}
         <button
           onClick={() => navigate("/register")}
-          className="w-24 h-24 rounded-full border-2 border-[#f9a8d4] text-[#f9a8d4] font-semibold text-base hover:bg-[#f9a8d4]/10 active:scale-95 transition-all"
+          className="w-24 h-24 rounded-full border-2 border-[#FFFFFF] text-[#FFFFFF] font-semibold text-base hover:bg-[#FFFFFF]/10 active:scale-95 transition-all"
         >
           註冊
         </button>

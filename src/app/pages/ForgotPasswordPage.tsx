@@ -32,7 +32,7 @@ export function ForgotPasswordPage() {
   if (sent) {
     return (
       <div className="flex flex-col items-center justify-center h-full px-8 gap-6">
-        <div className="w-16 h-16 rounded-full bg-gradient-to-br from-violet-500 via-fuchsia-500 to-cyan-400 flex items-center justify-center shadow-lg shadow-fuchsia-500/30">
+        <div className="w-16 h-16 rounded-full bg-white/10 flex items-center justify-center shadow-lg shadow-white/30">
           <span className="text-2xl">✉️</span>
         </div>
         <div className="text-center">
@@ -75,7 +75,7 @@ export function ForgotPasswordPage() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="you@example.com"
-            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-fuchsia-500/60 focus:bg-white/8 transition-all"
+            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-white/60 focus:bg-white/8 transition-all"
           />
         </div>
 
@@ -88,7 +88,7 @@ export function ForgotPasswordPage() {
         <button
           type="submit"
           disabled={loading}
-          className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-violet-600 via-fuchsia-600 to-cyan-500 text-white text-sm font-semibold shadow-lg shadow-fuchsia-500/25 hover:opacity-90 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed mt-2"
+          className="w-full py-3.5 rounded-2xl bg-white/10 text-white text-sm font-semibold shadow-lg shadow-white/25 hover:opacity-90 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed mt-2"
         >
           {loading ? "寄送中…" : "寄送重設連結"}
         </button>

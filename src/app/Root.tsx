@@ -1,8 +1,14 @@
 import React from "react";
 import { Outlet, useLocation, Navigate } from "react-router";
 import { BottomNav } from "./components/BottomNav";
+import { TopNav } from "./components/TopNav";
 import { useAuth } from "../contexts/AuthContext";
 
+/**
+ * Auth guards below are unchanged from the original. Only the Frame component
+ * was rewritten: it used to lock the whole site inside a 390x844 phone shell,
+ * which is why desktop visitors saw a phone mockup floating on a dark page.
+ */
 export function Root() {
   const location = useLocation();
   const { user, loading, profileChecked, needsOnboarding, isPasswordRecovery } = useAuth();
@@ -11,25 +17,18 @@ export function Root() {
   const isOnboarding  = location.pathname === "/onboarding";
   const isResetPassword = location.pathname === "/reset-password";
 
-  // ── 等 Supabase 恢復 session ──────────────────────────────────────────
   if (loading) return <Spinner />;
 
-  // ── PASSWORD_RECOVERY 狀態：強制留在重設密碼頁 ───────────────────────
   if (isPasswordRecovery && !isResetPassword) return <Navigate to="/reset-password" replace />;
 
-  // ── /reset-password：不做任何跳轉守衛，讓頁面自己處理 token / error ──
   if (isResetPassword) return <Frame isAuthPage={false} isOnboarding={false}><Outlet /></Frame>;
 
-  // ── 未登入 → 歡迎頁 ─────────────────────────────────────────────────
   if (!user && !isAuthPage) return <Navigate to="/welcome" replace />;
 
-  // ── 已登入 + auth/welcome 頁面 → 首頁 ───────────────────────────────
   if (user && isAuthPage) return <Navigate to="/" replace />;
 
-  // ── 已登入，等 profile 檢查 ──────────────────────────────────────────
   if (user && !profileChecked && !isOnboarding) return <Spinner />;
 
-  // ── 需要 onboarding ──────────────────────────────────────────────────
   if (user && needsOnboarding && !isOnboarding) return <Navigate to="/onboarding" replace />;
   if (user && !needsOnboarding && isOnboarding) return <Navigate to="/" replace />;
 
@@ -40,12 +39,10 @@ export function Root() {
   );
 }
 
-// ── 共用元件 ─────────────────────────────────────────────────────────────────
-
 function Spinner() {
   return (
-    <div className="flex justify-center items-center min-h-screen bg-[#050508]">
-      <div className="w-8 h-8 rounded-full border-2 border-fuchsia-500 border-t-transparent animate-spin" />
+    <div className="flex min-h-[100dvh] items-center justify-center bg-ink">
+      <div className="h-8 w-8 animate-spin rounded-full border-2 border-white border-t-transparent" />
     </div>
   );
 }
@@ -59,22 +56,30 @@ function Frame({
   isAuthPage: boolean;
   isOnboarding: boolean;
 }) {
-  return (
-    <div className={`flex justify-center items-center min-h-screen sm:p-4 text-white font-sans selection:bg-fuchsia-500/30 ${isAuthPage ? "bg-black" : "bg-[#050508]"}`}>
-      <div className={`w-full h-screen sm:h-[844px] sm:w-[390px] relative overflow-hidden sm:rounded-[40px] shadow-2xl flex flex-col ${isAuthPage ? "bg-black border-white/5 sm:border" : "bg-[#0a0a0f] border border-white/5"}`}>
-        {/* Ambient glow orbs — only on app pages */}
-        {!isAuthPage && (
-          <>
-            <div className="absolute top-[-80px] left-[-80px] w-64 h-64 bg-fuchsia-600/15 rounded-full blur-[90px] pointer-events-none" />
-            <div className="absolute bottom-[120px] right-[-40px] w-56 h-56 bg-cyan-500/8 rounded-full blur-[70px] pointer-events-none" />
-            <div className="absolute top-[40%] right-[-80px] w-72 h-72 bg-violet-600/10 rounded-full blur-[90px] pointer-events-none" />
-          </>
-        )}
+  const chromeless = isAuthPage || isOnboarding;
 
-        <div className="flex-1 overflow-hidden relative z-10">{children}</div>
-
-        {!isAuthPage && !isOnboarding && <BottomNav />}
+  // Account screens stay a single narrow column at every width. A login form
+  // stretched across a 27 inch monitor looks broken.
+  if (chromeless) {
+    return (
+      <div className="min-h-[100dvh] bg-black text-white font-sans selection:bg-white/25">
+        <div className="mx-auto flex min-h-[100dvh] w-full max-w-[420px] flex-col px-5">
+          {children}
+        </div>
       </div>
+    );
+  }
+
+  return (
+    <div className="min-h-[100dvh] bg-ink text-white font-sans selection:bg-white/25">
+      <TopNav />
+
+      {/* pb leaves room for the floating mobile nav; lg drops it. */}
+      <main className="relative z-10 mx-auto w-full max-w-[1440px] px-4 pb-32 sm:px-6 lg:px-10 lg:pb-16">
+        {children}
+      </main>
+
+      <BottomNav />
     </div>
   );
 }

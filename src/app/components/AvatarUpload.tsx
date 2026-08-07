@@ -60,7 +60,7 @@ export function AvatarUpload({ currentUrl, name, size = "lg", onUploaded }: Avat
         className={`${sizeMap[size]} rounded-full relative shrink-0 group`}
       >
         {/* 頭像 / 佔位 */}
-        <div className="w-full h-full rounded-full overflow-hidden border-2 border-white/20 bg-purple-900 flex items-center justify-center">
+        <div className="w-full h-full rounded-full overflow-hidden border-2 border-white/20 bg-white flex items-center justify-center">
           {currentUrl ? (
             <img src={currentUrl} alt={name ?? "avatar"} className="w-full h-full object-cover" />
           ) : (
@@ -73,7 +73,7 @@ export function AvatarUpload({ currentUrl, name, size = "lg", onUploaded }: Avat
         {/* Loading overlay */}
         {uploading && (
           <div className="absolute inset-0 rounded-full bg-black/60 flex items-center justify-center">
-            <Loader2 size={16} className="text-fuchsia-400 animate-spin" />
+            <Loader2 size={16} className="text-white animate-spin" />
           </div>
         )}
 

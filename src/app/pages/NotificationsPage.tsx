@@ -111,7 +111,7 @@ export function NotificationsPage() {
   }, [user]);
 
   return (
-    <div className="h-full flex flex-col bg-[#0a0a0f]">
+    <div className="h-full flex flex-col bg-[#141414]">
       {/* Header */}
       <div className="px-5 pt-14 pb-4">
         <h1 className="text-white font-semibold tracking-widest text-sm">NOTIFICATIONS</h1>
@@ -147,8 +147,8 @@ export function NotificationsPage() {
                       </span>
                     )}
                   </div>
-                  <div className={`absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full flex items-center justify-center border-2 border-[#0a0a0f] ${
-                    item.type === "follow" ? "bg-fuchsia-500" : "bg-red-500"
+                  <div className={`absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full flex items-center justify-center border-2 border-[#141414] ${
+                    item.type === "follow" ? "bg-white" : "bg-red-500"
                   }`}>
                     {item.type === "follow"
                       ? <UserPlus size={9} className="text-white" />

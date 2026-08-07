@@ -9,20 +9,33 @@ export async function getOrCreateConversation(
   // DB 規定 usera_id < userb_id
   const [usera_id, userb_id] = myId < otherId ? [myId, otherId] : [otherId, myId];
 
-  const { data: existing } = await supabase
+  const { data: existing, error: lookupError } = await supabase
     .from("conversations")
     .select("id")
     .eq("usera_id", usera_id)
     .eq("userb_id", userb_id)
     .maybeSingle();
+  if (lookupError) throw lookupError;
 
   if (existing) return existing.id;
 
-  const { data: created } = await supabase
+  const { data: created, error: createError } = await supabase
     .from("conversations")
     .insert({ usera_id, userb_id })
     .select("id")
     .single();
+
+  if (createError?.code === "23505") {
+    const { data: raced, error: racedError } = await supabase
+      .from("conversations")
+      .select("id")
+      .eq("usera_id", usera_id)
+      .eq("userb_id", userb_id)
+      .single();
+    if (racedError) throw racedError;
+    return raced.id;
+  }
+  if (createError) throw createError;
 
   return created?.id ?? null;
 }

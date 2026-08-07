@@ -65,7 +65,7 @@ export function LoginPage() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="example@gmail.com"
-            className="w-full bg-white rounded-xl px-4 py-3.5 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-pink-300 transition-all"
+            className="w-full bg-white rounded-xl px-4 py-3.5 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-white transition-all"
           />
         </div>
 
@@ -80,7 +80,7 @@ export function LoginPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="至少輸入六位數字"
-              className="w-full bg-white rounded-xl px-4 py-3.5 pr-11 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-pink-300 transition-all"
+              className="w-full bg-white rounded-xl px-4 py-3.5 pr-11 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-white transition-all"
             />
             <button
               type="button"
@@ -109,7 +109,7 @@ export function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-20 h-20 rounded-full bg-[#f9a8d4] text-black font-semibold text-sm hover:bg-[#f472b6] active:scale-95 transition-all shadow-lg shadow-pink-400/30 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-20 h-20 rounded-full bg-[#FFFFFF] text-black font-semibold text-sm hover:bg-[#C4C4C4] active:scale-95 transition-all shadow-lg shadow-white/30 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? "…" : "登入"}
           </button>
@@ -156,7 +156,7 @@ export function LoginPage() {
         {/* Footer link */}
         <p className="text-center text-sm text-gray-500 mt-auto pt-4">
           Don't have an account?{" "}
-          <Link to="/register" className="text-white font-medium hover:text-pink-300 transition-colors">
+          <Link to="/register" className="text-white font-medium hover:text-white transition-colors">
             Sign up
           </Link>
         </p>

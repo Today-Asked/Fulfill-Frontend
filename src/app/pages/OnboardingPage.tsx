@@ -63,7 +63,7 @@ export function OnboardingPage() {
     <div className="flex flex-col h-full px-6 pt-14 pb-8 overflow-y-auto">
       {/* Header */}
       <div className="mb-8">
-        <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-violet-500 via-fuchsia-500 to-cyan-400 mb-6 shadow-lg shadow-fuchsia-500/30" />
+        <div className="w-10 h-10 rounded-2xl bg-white/10 mb-6 shadow-lg shadow-white/30" />
         <h1 className="text-2xl font-bold text-white mb-1">設定你的個人檔案</h1>
         <p className="text-sm text-gray-500">這些資訊會顯示在你的公開頁面</p>
       </div>
@@ -91,7 +91,7 @@ export function OnboardingPage() {
         {/* Username */}
         <div className="flex flex-col gap-1.5">
           <label className="text-xs text-gray-400 font-medium tracking-wide uppercase">
-            用戶名稱 <span className="text-fuchsia-500">*</span>
+            用戶名稱 <span className="text-white">*</span>
           </label>
           <div className="relative">
             <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-600 text-sm select-none">
@@ -106,7 +106,7 @@ export function OnboardingPage() {
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               placeholder="your_handle"
-              className="w-full bg-white/5 border border-white/10 rounded-xl pl-8 pr-4 py-3 text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-fuchsia-500/60 focus:bg-white/8 transition-all"
+              className="w-full bg-white/5 border border-white/10 rounded-xl pl-8 pr-4 py-3 text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-white/60 focus:bg-white/8 transition-all"
             />
           </div>
           <p className="text-xs text-gray-600">只能使用英文、數字、底線、句點</p>
@@ -115,7 +115,7 @@ export function OnboardingPage() {
         {/* Name */}
         <div className="flex flex-col gap-1.5">
           <label className="text-xs text-gray-400 font-medium tracking-wide uppercase">
-            顯示名稱 <span className="text-fuchsia-500">*</span>
+            顯示名稱 <span className="text-white">*</span>
           </label>
           <input
             type="text"
@@ -124,7 +124,7 @@ export function OnboardingPage() {
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="你想讓別人怎麼稱呼你"
-            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-fuchsia-500/60 focus:bg-white/8 transition-all"
+            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-white/60 focus:bg-white/8 transition-all"
           />
         </div>
 
@@ -140,7 +140,7 @@ export function OnboardingPage() {
             value={bio}
             onChange={(e) => setBio(e.target.value)}
             placeholder="簡單介紹一下自己…"
-            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-fuchsia-500/60 focus:bg-white/8 transition-all resize-none"
+            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-white/60 focus:bg-white/8 transition-all resize-none"
           />
           <p className="text-xs text-gray-600 text-right">{bio.length} / 160</p>
         </div>
@@ -150,7 +150,7 @@ export function OnboardingPage() {
           onClick={() => setIsArtist((v) => !v)}
           className={`flex items-center justify-between px-4 py-4 rounded-2xl border cursor-pointer transition-all ${
             isArtist
-              ? "bg-fuchsia-500/10 border-fuchsia-500/40"
+              ? "bg-white/10 border-white/40"
               : "bg-white/5 border-white/10"
           }`}
         >
@@ -163,7 +163,7 @@ export function OnboardingPage() {
           {/* Toggle pill */}
           <div
             className={`w-11 h-6 rounded-full transition-all shrink-0 ml-4 relative ${
-              isArtist ? "bg-fuchsia-500" : "bg-white/10"
+              isArtist ? "bg-white" : "bg-white/10"
             }`}
           >
             <div
@@ -185,7 +185,7 @@ export function OnboardingPage() {
         <button
           type="submit"
           disabled={loading}
-          className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-violet-600 via-fuchsia-600 to-cyan-500 text-white text-sm font-semibold shadow-lg shadow-fuchsia-500/25 hover:opacity-90 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed mt-2 flex items-center justify-center gap-2"
+          className="w-full py-3.5 rounded-2xl bg-white/10 text-white text-sm font-semibold shadow-lg shadow-white/25 hover:opacity-90 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed mt-2 flex items-center justify-center gap-2"
         >
           {loading ? (
             <>
