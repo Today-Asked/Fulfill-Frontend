@@ -28,7 +28,7 @@ npx supabase db push
 | `users` | 加 `school_email`、`school_verified_at` |
 | `artworks` | 加專案資訊 7 欄：合作對象、使用情境、年份、工具、負責部分、團隊與否、製作天數 |
 | `commission_requests` | 加 11 個欄位：社團名稱、服務項目、預算上下限、初稿與交件日期、聯絡方式、素材狀態、婉拒原因、備註、已讀時間。`chat_id` 改為可空 |
-| `creator_saves` | **新表** — 候選名單（原本的 `saves` 只能收藏作品） |
+| `creator_saves` | **新表** — 收藏創作者（原本的 `saves` 只能收藏作品） |
 | `match_outcomes` | **新表** — 媒合結果追蹤 |
 | `reports` | **新表** — 檢舉 |
 | `blocks` | **新表** — 封鎖 |
@@ -57,7 +57,7 @@ create policy "artist_profiles: public read" ... using (true);
 | 檔案 | 內容 |
 |---|---|
 | `src/lib/commissions.ts` | 建立／查詢／接受／婉拒邀請、媒合結果 |
-| `src/lib/creators.ts` | 創作者搜尋與篩選、合作資訊編輯、發布門檻計算、候選名單、檢舉、封鎖、成大信箱 |
+| `src/lib/creators.ts` | 創作者搜尋與篩選、合作資訊編輯、發布門檻計算、收藏創作者、檢舉、封鎖、成大信箱 |
 
 寫法完全照 `chat.ts` 的風格：純 async 函式，回傳頁面要的形狀，Supabase 的細節不外流到元件。
 
@@ -79,6 +79,6 @@ create policy "artist_profiles: public read" ... using (true);
 
 ## 下一步
 
-資料庫和存取層都好了，剩下把畫面接上去：邀請表單、邀請管理、候選名單、個人頁編輯與發布、搜尋篩選、檢舉對話框。
+資料庫和存取層都好了，剩下把畫面接上去：邀請表單、邀請管理、收藏創作者、個人頁編輯與發布、搜尋篩選、檢舉對話框。
 
 那些是純前端，接到上面這兩個檔案就好，不會再動資料庫。
