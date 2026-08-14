@@ -10,7 +10,7 @@ export function WelcomePage() {
       {/* Brand mark */}
       <div className="flex-1 flex items-center justify-center">
         <img
-          src="/logo-mark.png"
+          src="/logo-mark.svg"
           alt="FULFILL ㄈㄈ標誌"
           className="h-auto w-52 object-contain sm:w-56"
         />

@@ -37,7 +37,7 @@ export function TopNav() {
     <header className="sticky top-0 z-40 hidden border-b border-white/8 bg-ink/90 backdrop-blur-xl lg:block">
       <div className="mx-auto flex w-full max-w-[1440px] items-center gap-8 px-10 py-3.5">
         <Link to="/" className="flex shrink-0 items-center gap-2.5" aria-label="FULFILL 首頁">
-          <img src="/logo-mark.png" alt="" className="h-7 w-auto" />
+          <img src="/logo-mark.svg" alt="" className="h-7 w-auto" />
           <span className="text-xl font-semibold tracking-tight">FULFILL</span>
         </Link>
 
