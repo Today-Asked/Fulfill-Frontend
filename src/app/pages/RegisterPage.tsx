@@ -21,7 +21,11 @@ export function RegisterPage() {
     if (password !== confirmPassword) { setError("兩次密碼不一致"); return; }
     setLoading(true);
 
-    const { error: signUpError } = await supabase.auth.signUp({ email, password });
+    const { error: signUpError } = await supabase.auth.signUp({ 
+      email, 
+      password,
+      options: { emailRedirectTo: window.location.origin }
+    });
     setLoading(false);
 
     if (signUpError) { setError(translateAuthError(signUpError.message)); return; }
