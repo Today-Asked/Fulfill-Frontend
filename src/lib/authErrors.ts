@@ -4,17 +4,17 @@ const ERROR_MAP: Record<string, string> = {
   "For security purposes, you can only request this once every 60 seconds":
     "請等待 60 秒後再重新申請。",
   "Invalid login credentials":
-    "Email 或密碼錯誤，請再試一次。",
+    "Email 或密碼錯誤",
   "Email not confirmed":
-    "Email 尚未驗證，請先到信箱點擊驗證連結。",
+    "Email 尚未驗證，請至信箱點擊驗證連結",
   "User already registered":
-    "這個 Email 已經註冊過了，請直接登入。",
+    "此 Email 已被註冊",
   "Password should be at least 6 characters":
-    "密碼至少需要 6 個字元。",
+    "密碼至少需要 6 個字元",
   "Unable to validate email address: invalid format":
-    "Email 格式不正確。",
+    "Email 格式不正確",
   "signup is disabled":
-    "目前暫停開放註冊。",
+    "目前暫停開放註冊",
 };
 
 export function translateAuthError(message: string): string {

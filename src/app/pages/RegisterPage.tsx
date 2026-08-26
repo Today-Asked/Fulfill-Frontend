@@ -21,14 +21,21 @@ export function RegisterPage() {
     if (password !== confirmPassword) { setError("兩次密碼不一致"); return; }
     setLoading(true);
 
-    const { error: signUpError } = await supabase.auth.signUp({ 
+    const { data: signUpData, error: signUpError } = await supabase.auth.signUp({ 
       email, 
       password,
-      options: { emailRedirectTo: window.location.origin }
-    });
+      options: { emailRedirectTo: window.location.origin } });
     setLoading(false);
 
     if (signUpError) { setError(translateAuthError(signUpError.message)); return; }
+
+    // Supabase 在 Email 已註冊過（且已驗證）時不會回傳 error，
+    // 而是回傳一個 identities 為空陣列的 user，藉此避免洩漏帳號是否存在。
+    if (signUpData.user && signUpData.user.identities?.length === 0) {
+      setError(translateAuthError("User already registered"));
+      return;
+    }
+
     setSuccess(true);
   }
 
@@ -138,7 +145,7 @@ export function RegisterPage() {
 
         {/* Error */}
         {error && (
-          <p className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3">
+          <p className="text-xs text-red-800 bg-red-200 rounded-md px-4 py-3">
             {error}
           </p>
         )}

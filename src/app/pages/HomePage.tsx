@@ -5,16 +5,6 @@ import { supabase } from "../../lib/supabase";
 import { useAuth } from "../../contexts/AuthContext";
 import { getOrCreateConversation } from "../../lib/chat";
 
-// Category → DB tag name (null = special mode, not tag-filtered)
-const CATEGORY_CONFIG = [
-  { label: "熱門推薦",  tagName: null as string | null },
-  { label: "個人化推薦", tagName: null as string | null },
-  { label: "角色設計",  tagName: "Character Design" },
-  { label: "品牌設計",  tagName: "Brand Design" },
-  { label: "插畫",     tagName: "Illustration" },
-  { label: "數位藝術",  tagName: "Digital Art" },
-];
-
 interface Artwork {
   id: number;
   title: string | null;
@@ -38,7 +28,6 @@ interface SearchCreator {
 }
 
 export function HomePage() {
-  const [activeCat, setActiveCat] = useState(0);
   const navigate = useNavigate();
   const { user } = useAuth();
 
@@ -102,7 +91,7 @@ export function HomePage() {
     })();
   }, [user]);
 
-  // ── Effect 2: 依分類撈作品（user / activeCat / myArtistReady 改變時執行）──
+  // ── Effect 2: 撈熱門作品（user / myArtistReady 改變時執行）───────────────
   useEffect(() => {
     if (!myArtistReady) return;
 
@@ -110,88 +99,17 @@ export function HomePage() {
     setArtworks([]);
     setLikes(new Set());
 
-    const cat = CATEGORY_CONFIG[activeCat];
-
     async function fetchArtworks() {
-      let loaded: Artwork[] = [];
-
-      if (activeCat === 1) {
-        // 個人化推薦：顯示追蹤中創作者的作品
-        if (!user) {
-          setArtworks([]);
-          setLoadingArtworks(false);
-          return;
-        }
-        const { data: followData } = await supabase
-          .from("follows")
-          .select("following_id")
-          .eq("follower_id", user.id);
-        const followedIds = (followData ?? []).map((f: any) => f.following_id);
-
-        if (followedIds.length > 0) {
-          const { data: apData } = await supabase
-            .from("artist_profiles")
-            .select("id")
-            .in("user_id", followedIds);
-          const artistIds = (apData ?? []).map((ap: any) => ap.id);
-
-          if (artistIds.length > 0) {
-            let q = supabase
-              .from("artworks")
-              .select("id, title, cover_image_url")
-              .in("artist_id", artistIds)
-              .eq("status", "published")
-              .is("deleted_at", null)
-              .order("created_at", { ascending: false })
-              .limit(6);
-            if (myArtistId !== null) q = q.neq("artist_id", myArtistId);
-            const { data } = await q;
-            loaded = data ?? [];
-          }
-        }
-      } else if (cat.tagName) {
-        // 標籤分類
-        const { data: tagRow } = await supabase
-          .from("tags")
-          .select("id")
-          .eq("name", cat.tagName)
-          .maybeSingle();
-
-        if (tagRow?.id) {
-          const { data: atRows } = await supabase
-            .from("artwork_tags")
-            .select("artwork_id")
-            .eq("tag_id", tagRow.id)
-            .limit(30);
-
-          const ids = (atRows ?? []).map((r: any) => r.artwork_id);
-          if (ids.length > 0) {
-            let q = supabase
-              .from("artworks")
-              .select("id, title, cover_image_url")
-              .in("id", ids)
-              .eq("status", "published")
-              .is("deleted_at", null)
-              .order("created_at", { ascending: false })
-              .limit(6);
-            if (myArtistId !== null) q = q.neq("artist_id", myArtistId);
-            const { data } = await q;
-            loaded = data ?? [];
-          }
-        }
-      } else {
-        // 熱門推薦（預設）
-        let q = supabase
-          .from("artworks")
-          .select("id, title, cover_image_url")
-          .eq("status", "published")
-          .is("deleted_at", null)
-          .order("created_at", { ascending: false })
-          .limit(6);
-        if (myArtistId !== null) q = q.neq("artist_id", myArtistId);
-        const { data } = await q;
-        loaded = data ?? [];
-      }
+      let q = supabase
+        .from("artworks")
+        .select("id, title, cover_image_url")
+        .eq("status", "published")
+        .is("deleted_at", null)
+        .order("created_at", { ascending: false })
+        .limit(6);
+      if (myArtistId !== null) q = q.neq("artist_id", myArtistId);
+      const { data } = await q;
+      const loaded: Artwork[] = data ?? [];
 
       setArtworks(loaded);
       setLoadingArtworks(false);
@@ -208,7 +126,7 @@ export function HomePage() {
     }
 
     fetchArtworks();
-  }, [user, activeCat, myArtistReady, myArtistId]);
+  }, [user, myArtistReady, myArtistId]);
 
   // ── 按讚切換 ────────────────────────────────────────────────────────────
   async function handleToggleLike(artworkId: number, e: React.MouseEvent) {
@@ -299,15 +217,7 @@ export function HomePage() {
       {loadingArtworks ? (
         <BentoSkeleton />
       ) : artworks.length === 0 ? (
-        <BentoEmpty
-          message={
-            activeCat === 1
-              ? "追蹤創作者後，這裡會顯示他們的作品"
-              : CATEGORY_CONFIG[activeCat].tagName
-              ? `「${CATEGORY_CONFIG[activeCat].label}」分類尚無作品`
-              : "尚未有公開作品"
-          }
-        />
+        <BentoEmpty />
       ) : (
         <div className="px-3 mb-4">
           <div className="flex gap-2 mb-2">
@@ -328,25 +238,6 @@ export function HomePage() {
           </div>
         </div>
       )}
-
-      {/* Category Tags */}
-      <div className="pl-4 mb-6 overflow-x-auto [&::-webkit-scrollbar]:hidden">
-        <div className="flex gap-2 pr-4 w-max">
-          {CATEGORY_CONFIG.map((cat, idx) => (
-            <button
-              key={cat.label}
-              onClick={() => setActiveCat(idx)}
-              className={`px-4 py-2 rounded-full text-xs font-medium whitespace-nowrap transition-all duration-200 ${
-                activeCat === idx
-                  ? "bg-white/10 text-white shadow-[0_0_12px_rgba(255,255,255,0.12)]"
-                  : "bg-white/5 border border-white/10 text-gray-400 hover:text-white hover:bg-white/8"
-              }`}
-            >
-              {cat.label}
-            </button>
-          ))}
-        </div>
-      </div>
 
       {/* Top Creators */}
       <div className="px-4 mb-6">

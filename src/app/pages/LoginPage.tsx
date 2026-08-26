@@ -79,7 +79,7 @@ export function LoginPage() {
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="至少輸入六位數字"
+              placeholder=""
               className="w-full bg-white rounded-xl px-4 py-3.5 pr-11 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-white transition-all"
             />
             <button
