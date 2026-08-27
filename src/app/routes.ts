@@ -27,6 +27,7 @@ export const router = createBrowserRouter([
       { index: true, Component: HomePage },
       { path: "artwork/:id", Component: ArtworkDetailPage },
       { path: "creator/:id", Component: CreatorProfilePage },
+      { path: "invite", Component: InvitePage },
       { path: "invite/:artistId", Component: InvitePage },
       { path: "search", Component: SearchPage },
       { path: "chat", Component: ChatListPage },

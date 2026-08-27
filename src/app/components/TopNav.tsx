@@ -3,6 +3,7 @@ import { Link, NavLink, useNavigate } from "react-router";
 import { Search, Bell, ClipboardList, Send, Plus, UserCircle2 } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import { useAuth } from "../../contexts/AuthContext";
+import { CreateMenu } from "./CreateMenu";
 
 /**
  * Desktop navigation. Hidden below lg, where BottomNav takes over.
@@ -88,13 +89,20 @@ export function TopNav() {
           <NavItem to="/notifications" icon={Bell} label="通知" />
           <NavItem to="/profile" icon={UserCircle2} label="我的" />
 
-          <Link
-            to="/create"
-            className="ml-3 flex h-10 items-center gap-2 rounded-full bg-paper px-5 text-sm font-semibold text-ink transition-colors hover:bg-brand-muted"
-          >
-            <Plus size={18} strokeWidth={2.5} />
-            新增作品
-          </Link>
+          <CreateMenu
+            className="ml-3"
+            direction="down"
+            align="end"
+            trigger={(open) => (
+              <span
+                className={`flex h-10 w-10 items-center justify-center rounded-full bg-paper text-ink transition-all hover:bg-brand-muted ${
+                  open ? "rotate-45" : ""
+                }`}
+              >
+                <Plus size={18} strokeWidth={2.5} />
+              </span>
+            )}
+          />
         </nav>
       </div>
     </header>

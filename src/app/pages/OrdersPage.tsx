@@ -20,6 +20,14 @@ const statusLabel: Record<Commission["status"], string> = {
   completed: "已完成",
 };
 
+const declineReasonLabel: Record<DeclineReason, string> = {
+  schedule: "時間無法配合",
+  budget: "預算不合",
+  not_taking: "目前不接案",
+  style_mismatch: "風格不合",
+  other: "其他",
+};
+
 export function OrdersPage() {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
@@ -97,7 +105,7 @@ export function OrdersPage() {
                 <div className="min-w-0">
                   <div className="mb-2 flex items-center gap-2 text-xs text-white/40"><Clock3 size={14} />{new Date(item.createdAt).toLocaleDateString('zh-TW')}</div>
                   <h2 className="text-xl font-semibold text-white">{item.orgName}</h2>
-                  <p className="mt-1 text-sm text-white/50">{role === 'received' ? `來自 ${item.clientName}` : `邀請 ${item.artistName}`}</p>
+                  <p className="mt-1 text-sm text-white/50">{role === 'received' ? `來自 ${item.clientName}` : item.artistUserId ? `邀請 ${item.artistName}` : '公開委託（尚未有人接下）'}</p>
                 </div>
                 <span className={`border px-3 py-1 text-xs ${item.status === 'pending' ? 'border-amber-300/30 text-amber-200' : item.status === 'rejected' ? 'border-white/10 text-white/35' : 'border-emerald-300/30 text-emerald-200'}`}>{statusLabel[item.status]}</span>
               </div>
@@ -107,6 +115,13 @@ export function OrdersPage() {
                 <Info label="預算" value={formatBudget(item)} />
                 <Info label="交件" value={item.finalDueDate ? new Date(item.finalDueDate).toLocaleDateString('zh-TW') : '未指定'} />
               </dl>
+              {item.status === 'rejected' && item.declineReason && (
+                <div className="mt-4 border-l-2 border-white/10 pl-4">
+                  <p className="text-xs text-white/35">{role === 'sent' ? '對方婉拒原因' : '你婉拒的原因'}</p>
+                  <p className="mt-1 text-sm text-white/70">{declineReasonLabel[item.declineReason]}</p>
+                  {item.replyNote && <p className="mt-1 whitespace-pre-wrap text-sm text-white/50">{item.replyNote}</p>}
+                </div>
+              )}
               <div className="mt-5 flex flex-wrap gap-2">
                 {role === 'received' && item.status === 'pending' && <>
                   <button disabled={busyId === item.id} onClick={() => void accept(item)} className="flex items-center gap-2 bg-white px-4 py-2.5 text-sm font-semibold text-black disabled:opacity-40"><Check size={16} />接受並開始對話</button>

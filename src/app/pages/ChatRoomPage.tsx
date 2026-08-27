@@ -1,9 +1,10 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useMemo } from "react";
 import { useNavigate, useParams } from "react-router";
-import { ArrowLeft, Info, Smile, Paperclip, X, ExternalLink, Loader2 } from "lucide-react";
+import { ArrowLeft, Info, Smile, Paperclip, X, ExternalLink, Loader2, Briefcase } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import { useAuth } from "../../contexts/AuthContext";
 import { useUpload } from "../../lib/useUpload";
+import { getCommission, inviteCommissionArtist, type Commission } from "../../lib/commissions";
 
 const PAGE_SIZE = 50;
 
@@ -12,7 +13,7 @@ interface DbMessage {
   chat_id: number;
   sender_id: string;
   type: string;
-  content: { text?: string; url?: string } | null;
+  content: { text?: string; url?: string; commission_id?: number; kind?: string } | null;
   created_at: string;
 }
 
@@ -22,6 +23,7 @@ interface OtherUser {
   username: string | null;
   avatar_url: string | null;
   bio: string | null;
+  artist_profiles: { id: number } | null;
 }
 
 export function ChatRoomPage() {
@@ -39,6 +41,11 @@ export function ChatRoomPage() {
   const [sending, setSending] = useState(false);
   const [isComposing, setIsComposing] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
+
+  // 這個聊天室提到的「未指定委託」——委託人可以在這裡一鍵邀請對方正式接案
+  const [referencedCommission, setReferencedCommission] = useState<Commission | null>(null);
+  const [inviting, setInviting] = useState(false);
+  const [inviteError, setInviteError] = useState("");
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -61,8 +68,8 @@ export function ChatRoomPage() {
       const { data: conv } = await supabase
         .from("conversations")
         .select(`
-          usera:usera_id(id, username, name, avatar_url, bio),
-          userb:userb_id(id, username, name, avatar_url, bio)
+          usera:usera_id(id, username, name, avatar_url, bio, artist_profiles!artist_profiles_user_id_fkey(id)),
+          userb:userb_id(id, username, name, avatar_url, bio, artist_profiles!artist_profiles_user_id_fkey(id))
         `)
         .eq("id", chatId)
         .single();
@@ -144,6 +151,69 @@ export function ChatRoomPage() {
       setHasMore(data.length === PAGE_SIZE);
     }
     setLoadingEarlier(false);
+  }
+
+  // 這串對話裡最新一次「諮詢」提到的委託 id
+  const inquiredCommissionId = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const msg = messages[i];
+      if (msg.type === "commission" && msg.content?.kind === "inquiry" && msg.content.commission_id) {
+        return msg.content.commission_id;
+      }
+    }
+    return null;
+  }, [messages]);
+
+  // 拿那則委託的即時狀態，判斷是否還能邀請（可能已經被別的對話搶先邀走了）
+  useEffect(() => {
+    if (!inquiredCommissionId) { setReferencedCommission(null); return; }
+    getCommission(inquiredCommissionId)
+      .then(setReferencedCommission)
+      .catch(() => setReferencedCommission(null));
+  }, [inquiredCommissionId]);
+
+  const canInviteFromChat =
+    Boolean(user) &&
+    Boolean(otherUser?.artist_profiles) &&
+    referencedCommission != null &&
+    referencedCommission.clientId === user?.id &&
+    referencedCommission.artistId == null &&
+    referencedCommission.status === "pending";
+
+  async function handleInviteFromChat() {
+    if (!referencedCommission || !otherUser?.artist_profiles || !user || !chatId) return;
+    setInviting(true);
+    setInviteError("");
+    try {
+      await inviteCommissionArtist(referencedCommission.id, otherUser.artist_profiles.id);
+
+      const { data: newMsg } = await supabase
+        .from("messages")
+        .insert({
+          chat_id: chatId,
+          sender_id: user.id,
+          type: "commission",
+          content: {
+            commission_id: referencedCommission.id,
+            kind: "invited",
+            text: `我邀請你正式接下「${referencedCommission.orgName}」，請到「訂單」頁確認接受。`,
+          },
+        })
+        .select("id, chat_id, sender_id, type, content, created_at")
+        .single();
+
+      if (newMsg) {
+        setMessages((prev) => [...prev, newMsg as DbMessage]);
+        await supabase.from("conversations")
+          .update({ last_message_at: (newMsg as DbMessage).created_at })
+          .eq("id", chatId);
+      }
+      setReferencedCommission((prev) => (prev ? { ...prev, artistId: otherUser.artist_profiles!.id } : prev));
+    } catch (e) {
+      setInviteError(e instanceof Error ? e.message : "邀請失敗，請重新整理再試一次。");
+    } finally {
+      setInviting(false);
+    }
   }
 
   // 傳送文字
@@ -230,6 +300,26 @@ export function ChatRoomPage() {
         </button>
       </div>
 
+      {/* 委託人一鍵邀請對方正式接案 */}
+      {canInviteFromChat && (
+        <div className="mx-4 mt-3 flex-shrink-0 flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/5 p-3">
+          <div className="flex items-center gap-2 min-w-0">
+            <Briefcase size={15} className="text-white/40 shrink-0" />
+            <p className="text-xs text-white/60 truncate">「{referencedCommission?.orgName}」還沒有指定創作者</p>
+          </div>
+          <button
+            onClick={handleInviteFromChat}
+            disabled={inviting}
+            className="shrink-0 rounded-full bg-white px-3.5 py-2 text-xs font-semibold text-black hover:opacity-90 transition-opacity disabled:opacity-50"
+          >
+            {inviting ? "邀請中…" : "邀請他接案"}
+          </button>
+        </div>
+      )}
+      {inviteError && (
+        <p className="mx-4 mt-2 flex-shrink-0 text-xs text-red-400">{inviteError}</p>
+      )}
+
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-4 py-4 [&::-webkit-scrollbar]:hidden space-y-3">
         {/* 載入更早訊息 */}
@@ -261,6 +351,18 @@ export function ChatRoomPage() {
                     : "bg-white/10 border border-white/8 text-white rounded-bl-md"
                 }`}>
                   <p className="text-sm whitespace-pre-line leading-relaxed">{text}</p>
+                </div>
+              </div>
+            );
+          }
+
+          if (msg.type === "commission") {
+            const text = msg.content?.text ?? "";
+            if (!text) return null;
+            return (
+              <div key={msg.id} className="flex justify-center">
+                <div className="max-w-[85%] rounded-2xl border border-white/10 bg-white/6 px-4 py-2.5 text-center">
+                  <p className="text-xs text-white/60 leading-relaxed">{text}</p>
                 </div>
               </div>
             );

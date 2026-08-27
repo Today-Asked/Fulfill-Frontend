@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from "react-router";
 import { Home, Send, Plus, ClipboardList, UserCircle2 } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import { useAuth } from "../../contexts/AuthContext";
+import { CreateMenu } from "./CreateMenu";
 
 const navItems = [
   { icon: Home,          label: "主頁", path: "/" },
@@ -68,14 +69,21 @@ export function BottomNav() {
 
           if (isCreate) {
             return (
-              <button
+              <CreateMenu
                 key={item.path}
-                onClick={() => navigate(item.path)}
-                aria-label={item.label}
-                className="-mt-6 flex h-11 w-11 items-center justify-center rounded-full bg-paper shadow-md shadow-white/20 transition-all hover:bg-brand-muted active:scale-95"
-              >
-                <Plus size={20} strokeWidth={2.5} className="text-black" />
-              </button>
+                className="-mt-6"
+                direction="up"
+                align="center"
+                trigger={(open) => (
+                  <span
+                    className={`flex h-11 w-11 items-center justify-center rounded-full bg-paper shadow-md shadow-white/20 transition-all hover:bg-brand-muted active:scale-95 ${
+                      open ? "rotate-45" : ""
+                    }`}
+                  >
+                    <Plus size={20} strokeWidth={2.5} className="text-black" />
+                  </span>
+                )}
+              />
             );
           }
 

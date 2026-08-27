@@ -4,6 +4,7 @@ import { Search, Bell, Heart, ChevronRight, ImageOff, X, Loader2 } from "lucide-
 import { supabase } from "../../lib/supabase";
 import { useAuth } from "../../contexts/AuthContext";
 import { getOrCreateConversation } from "../../lib/chat";
+import { listOpenCommissions, inquireCommission, type Commission } from "../../lib/commissions";
 
 interface Artwork {
   id: number;
@@ -47,6 +48,13 @@ export function HomePage() {
   const [searchArtworks, setSearchArtworks] = useState<Artwork[]>([]);
   const [searchCreators, setSearchCreators] = useState<SearchCreator[]>([]);
   const [searching, setSearching]           = useState(false);
+
+  // ── 頁籤：作品與創作者 / 未指定的委託 ──────────────────────────────────
+  const [tab, setTab] = useState<"discover" | "commissions">("discover");
+  const [openCommissions, setOpenCommissions]   = useState<Commission[]>([]);
+  const [loadingCommissions, setLoadingCommissions] = useState(false);
+  const [commissionsError, setCommissionsError] = useState("");
+  const [inquiringId, setInquiringId]           = useState<number | null>(null);
 
   // ── Effect 1: 拿 myArtistId + 創作者（只在 user 改變時執行）──────────────
   useEffect(() => {
@@ -143,6 +151,33 @@ export function HomePage() {
     }
   }
 
+  // ── Effect 3: 撈未指定的委託（切到該頁籤時才撈）──────────────────────────
+  useEffect(() => {
+    if (tab !== "commissions" || !user) return;
+    setLoadingCommissions(true);
+    setCommissionsError("");
+    listOpenCommissions()
+      .then(setOpenCommissions)
+      .catch((e) => setCommissionsError(e instanceof Error ? e.message : "載入委託失敗。"))
+      .finally(() => setLoadingCommissions(false));
+  }, [tab, user]);
+
+  // ── 諮詢詳情：任何人都能聊，不會佔用這則委託。開聊天室並標記這則委託，
+  // 讓委託者之後可以在聊天室裡一鍵邀請 ──────────────────────────────────
+  async function handleInquire(commission: Commission) {
+    if (!user) { navigate("/login"); return; }
+    setInquiringId(commission.id);
+    setCommissionsError("");
+    try {
+      const chatId = await inquireCommission(commission, user.id);
+      navigate(`/chat/${chatId}`);
+    } catch (e) {
+      setCommissionsError(e instanceof Error ? e.message : "開啟對話失敗，請稍後再試。");
+    } finally {
+      setInquiringId(null);
+    }
+  }
+
   // ── 搜尋（300ms debounce）──────────────────────────────────────────────
   useEffect(() => {
     const q = searchQuery.trim();
@@ -213,82 +248,134 @@ export function HomePage() {
         </button>
       </div>
 
-      {/* Bento Grid */}
-      {loadingArtworks ? (
-        <BentoSkeleton />
-      ) : artworks.length === 0 ? (
-        <BentoEmpty />
+      {/* Tabs */}
+      <div className="px-5 mb-4 flex gap-2">
+        <button
+          onClick={() => setTab("discover")}
+          className={`flex-1 py-2.5 rounded-full text-sm font-medium transition-colors ${
+            tab === "discover" ? "bg-white text-black" : "bg-white/8 text-gray-400 hover:text-white"
+          }`}
+        >
+          作品與創作者
+        </button>
+        <button
+          onClick={() => setTab("commissions")}
+          className={`flex-1 py-2.5 rounded-full text-sm font-medium transition-colors ${
+            tab === "commissions" ? "bg-white text-black" : "bg-white/8 text-gray-400 hover:text-white"
+          }`}
+        >
+          未指定的委託
+        </button>
+      </div>
+
+      {tab === "discover" ? (
+        <>
+          {/* Bento Grid */}
+          {loadingArtworks ? (
+            <BentoSkeleton />
+          ) : artworks.length === 0 ? (
+            <BentoEmpty />
+          ) : (
+            <div className="px-3 mb-4">
+              <div className="flex gap-2 mb-2">
+                <div className="flex flex-col gap-2 flex-[3]">
+                  <BentoCard artwork={slot(0)} heightClass="h-44"        isLiked={likes.has(slot(0)?.id ?? -1)} onToggleLike={handleToggleLike} />
+                  <BentoCard artwork={slot(2)} heightClass="h-36"        isLiked={likes.has(slot(2)?.id ?? -1)} onToggleLike={handleToggleLike} />
+                </div>
+                <div className="flex-[2]">
+                  <BentoCard artwork={slot(1)} heightClass="h-[21.5rem]" isLiked={likes.has(slot(1)?.id ?? -1)} onToggleLike={handleToggleLike} />
+                </div>
+              </div>
+              <div className="mb-2">
+                <BentoCard artwork={slot(3)} heightClass="h-36"          isLiked={likes.has(slot(3)?.id ?? -1)} onToggleLike={handleToggleLike} />
+              </div>
+              <div className="flex gap-2">
+                <BentoCard artwork={slot(4)} heightClass="h-44 flex-1"   isLiked={likes.has(slot(4)?.id ?? -1)} onToggleLike={handleToggleLike} />
+                <BentoCard artwork={slot(5)} heightClass="h-44 flex-1"   isLiked={likes.has(slot(5)?.id ?? -1)} onToggleLike={handleToggleLike} />
+              </div>
+            </div>
+          )}
+
+          {/* Top Creators */}
+          <div className="px-4 mb-6">
+            <div className="flex justify-between items-center mb-3">
+              <h2 className="text-sm font-semibold text-white tracking-wide">推薦創作者</h2>
+              <button className="text-xs text-white flex items-center gap-0.5">
+                全部 <ChevronRight size={12} />
+              </button>
+            </div>
+            {loadingCreators ? (
+              <CreatorListSkeleton />
+            ) : creators.length === 0 ? (
+              <p className="text-gray-500 text-xs px-3 py-6 text-center">尚無推薦創作者</p>
+            ) : (
+              <div className="flex flex-col gap-2.5">
+                {creators.map((creator) => (
+                  <div
+                    key={creator.id}
+                    onClick={() => creator.username && navigate(`/creator/${creator.username}`)}
+                    className="flex items-center justify-between p-3 bg-white/4 backdrop-blur-md border border-white/6 rounded-2xl hover:bg-white/8 transition-colors cursor-pointer"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="relative shrink-0">
+                        <AvatarImg url={creator.avatar_url} name={creator.name} size={10} />
+                        <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-400 border-2 border-[#141414] rounded-full" />
+                      </div>
+                      <div className="min-w-0">
+                        <span className="text-white text-sm font-medium truncate block">
+                          {creator.name ?? creator.username ?? "未命名"}
+                        </span>
+                        {creator.bio && (
+                          <span className="text-gray-400 text-[11px] truncate block">{creator.bio}</span>
+                        )}
+                      </div>
+                    </div>
+                    <button
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        if (!user) { navigate("/login"); return; }
+                        const convId = await getOrCreateConversation(user.id, creator.userId);
+                        if (convId) navigate(`/chat/${convId}`);
+                      }}
+                      className="text-[10px] px-2.5 py-1 rounded-lg bg-white/8 border border-white/10 text-gray-200 hover:bg-white/14 transition-colors shrink-0 ml-2"
+                    >
+                      聊聊
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </>
       ) : (
-        <div className="px-3 mb-4">
-          <div className="flex gap-2 mb-2">
-            <div className="flex flex-col gap-2 flex-[3]">
-              <BentoCard artwork={slot(0)} heightClass="h-44"        isLiked={likes.has(slot(0)?.id ?? -1)} onToggleLike={handleToggleLike} />
-              <BentoCard artwork={slot(2)} heightClass="h-36"        isLiked={likes.has(slot(2)?.id ?? -1)} onToggleLike={handleToggleLike} />
+        <div className="px-4 mb-6">
+          {commissionsError && (
+            <p className="text-amber-300 text-xs bg-amber-400/10 border border-amber-400/20 rounded-xl px-4 py-3 mb-3">
+              {commissionsError}
+            </p>
+          )}
+          {loadingCommissions ? (
+            <OpenCommissionSkeleton />
+          ) : openCommissions.length === 0 ? (
+            <div className="mx-1 rounded-[20px] border border-dashed border-white/10 px-6 py-14 flex flex-col items-center gap-2">
+              <p className="text-gray-400 text-sm">目前沒有未指定的委託</p>
+              <p className="text-gray-600 text-xs">點右上角「+」發布一則，讓所有創作者都看得到</p>
             </div>
-            <div className="flex-[2]">
-              <BentoCard artwork={slot(1)} heightClass="h-[21.5rem]" isLiked={likes.has(slot(1)?.id ?? -1)} onToggleLike={handleToggleLike} />
+          ) : (
+            <div className="flex flex-col gap-3">
+              {openCommissions.map((commission) => (
+                <OpenCommissionCard
+                  key={commission.id}
+                  commission={commission}
+                  isMine={commission.clientId === user?.id}
+                  inquiring={inquiringId === commission.id}
+                  onInquire={() => void handleInquire(commission)}
+                />
+              ))}
             </div>
-          </div>
-          <div className="mb-2">
-            <BentoCard artwork={slot(3)} heightClass="h-36"          isLiked={likes.has(slot(3)?.id ?? -1)} onToggleLike={handleToggleLike} />
-          </div>
-          <div className="flex gap-2">
-            <BentoCard artwork={slot(4)} heightClass="h-44 flex-1"   isLiked={likes.has(slot(4)?.id ?? -1)} onToggleLike={handleToggleLike} />
-            <BentoCard artwork={slot(5)} heightClass="h-44 flex-1"   isLiked={likes.has(slot(5)?.id ?? -1)} onToggleLike={handleToggleLike} />
-          </div>
+          )}
         </div>
       )}
-
-      {/* Top Creators */}
-      <div className="px-4 mb-6">
-        <div className="flex justify-between items-center mb-3">
-          <h2 className="text-sm font-semibold text-white tracking-wide">推薦創作者</h2>
-          <button className="text-xs text-white flex items-center gap-0.5">
-            全部 <ChevronRight size={12} />
-          </button>
-        </div>
-        {loadingCreators ? (
-          <CreatorListSkeleton />
-        ) : creators.length === 0 ? (
-          <p className="text-gray-500 text-xs px-3 py-6 text-center">尚無推薦創作者</p>
-        ) : (
-          <div className="flex flex-col gap-2.5">
-            {creators.map((creator) => (
-              <div
-                key={creator.id}
-                onClick={() => creator.username && navigate(`/creator/${creator.username}`)}
-                className="flex items-center justify-between p-3 bg-white/4 backdrop-blur-md border border-white/6 rounded-2xl hover:bg-white/8 transition-colors cursor-pointer"
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="relative shrink-0">
-                    <AvatarImg url={creator.avatar_url} name={creator.name} size={10} />
-                    <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-400 border-2 border-[#141414] rounded-full" />
-                  </div>
-                  <div className="min-w-0">
-                    <span className="text-white text-sm font-medium truncate block">
-                      {creator.name ?? creator.username ?? "未命名"}
-                    </span>
-                    {creator.bio && (
-                      <span className="text-gray-400 text-[11px] truncate block">{creator.bio}</span>
-                    )}
-                  </div>
-                </div>
-                <button
-                  onClick={async (e) => {
-                    e.stopPropagation();
-                    if (!user) { navigate("/login"); return; }
-                    const convId = await getOrCreateConversation(user.id, creator.userId);
-                    if (convId) navigate(`/chat/${convId}`);
-                  }}
-                  className="text-[10px] px-2.5 py-1 rounded-lg bg-white/8 border border-white/10 text-gray-200 hover:bg-white/14 transition-colors shrink-0 ml-2"
-                >
-                  聊聊
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
 
       {/* Search Overlay */}
       {showSearch && (
@@ -533,6 +620,81 @@ function BentoEmpty({ message = "尚未有公開作品" }: { message?: string })
     <div className="mx-3 mb-4 rounded-[20px] border border-dashed border-white/10 px-6 py-14 flex flex-col items-center gap-2">
       <ImageOff size={28} className="text-gray-600" />
       <p className="text-gray-400 text-sm">{message}</p>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * OpenCommissionCard — 未指定的委託
+ * ───────────────────────────────────────────────────────────────────────── */
+function OpenCommissionCard({
+  commission,
+  isMine,
+  inquiring,
+  onInquire,
+}: {
+  commission: Commission;
+  isMine: boolean;
+  inquiring: boolean;
+  onInquire: () => void;
+}) {
+  const budget =
+    commission.budgetMin == null && commission.budgetMax == null
+      ? "預算面議"
+      : `NT$ ${(commission.budgetMin ?? 0).toLocaleString()} - ${(commission.budgetMax ?? commission.budgetMin ?? 0).toLocaleString()}`;
+
+  return (
+    <div className="p-4 bg-white/4 backdrop-blur-md border border-white/6 rounded-2xl">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-white text-sm font-semibold truncate">{commission.orgName}</p>
+          <p className="text-gray-500 text-[11px] mt-0.5">{commission.clientName}</p>
+        </div>
+        {isMine && (
+          <span className="text-[10px] px-2 py-1 rounded-full bg-white/8 text-gray-400 shrink-0">你發布的</span>
+        )}
+      </div>
+
+      {commission.services.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 mt-3">
+          {commission.services.map((s) => (
+            <span key={s} className="text-[10px] px-2 py-1 rounded-full bg-white/6 text-gray-300">
+              {s}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {commission.description && (
+        <p className="text-gray-400 text-xs mt-3 line-clamp-2">{commission.description}</p>
+      )}
+
+      <div className="flex items-center justify-between mt-3 text-[11px] text-gray-500">
+        <span>{budget}</span>
+        {commission.finalDueDate && (
+          <span>交件 {new Date(commission.finalDueDate).toLocaleDateString("zh-TW")}</span>
+        )}
+      </div>
+
+      {!isMine && (
+        <button
+          onClick={onInquire}
+          disabled={inquiring}
+          className="w-full mt-4 py-2.5 rounded-xl bg-white/8 text-white text-xs font-medium hover:bg-white/14 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {inquiring ? "開啟對話中…" : "諮詢詳情"}
+        </button>
+      )}
+    </div>
+  );
+}
+
+function OpenCommissionSkeleton() {
+  return (
+    <div className="flex flex-col gap-3 animate-pulse">
+      {[0, 1, 2].map((i) => (
+        <div key={i} className="h-40 rounded-2xl bg-white/5" />
+      ))}
     </div>
   );
 }

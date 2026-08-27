@@ -29,7 +29,7 @@ const SELECT = `
   id, user_id, availability, services, budget_mode, budget_from, budget_to,
   available_from, turnaround_days, work_mode, school, cover_image_url,
   is_published, is_verified,
-  users ( id, name, username, avatar_url, bio, school_verified_at )
+  users!artist_profiles_user_id_fkey ( id, name, username, avatar_url, bio, school_verified_at )
 `;
 
 function toCreator(row: any): CreatorSummary {

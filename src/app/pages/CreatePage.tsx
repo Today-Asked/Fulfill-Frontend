@@ -1,26 +1,32 @@
-import React, { useState, useRef } from "react";
-import { ImagePlus, Type, FileText, DollarSign, Calendar, ChevronRight, X, Loader2 } from "lucide-react";
+import React, { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router";
+import { ImagePlus, Type, FileText, X, Loader2 } from "lucide-react";
+import { useAuth } from "../../contexts/AuthContext";
 import { useUpload } from "../../lib/useUpload";
-
-const steps = [
-  { num: "01", icon: ImagePlus,    title: "選照片 / 參考圖", desc: "上傳你的靈感或參考圖" },
-  { num: "02", icon: FileText,     title: "填寫委託條件",   desc: "描述作品需求、預算與期限" },
-  { num: "03", icon: ChevronRight, title: "進入聊天與訂單", desc: "發佈後自動建立委託聊天室" },
-];
+import { getMyArtistProfileId } from "../../lib/commissions";
+import { createArtwork } from "../../lib/artworks";
 
 export function CreatePage() {
-  const [title, setTitle]       = useState("");
-  const [desc, setDesc]         = useState("");
-  const [budget, setBudget]     = useState("");
-  const [deadline, setDeadline] = useState("");
+  const { user, loading: authLoading } = useAuth();
+  const navigate = useNavigate();
+
+  const [title, setTitle] = useState("");
+  const [desc, setDesc] = useState("");
 
   // 圖片狀態
-  const [previewUrl, setPreviewUrl]     = useState<string | null>(null);
-  const [uploadedUrl, setUploadedUrl]   = useState<string | null>(null);
-  const [uploadError, setUploadError]   = useState<string | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [uploadedUrl, setUploadedUrl] = useState<string | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { upload, uploading, progress } = useUpload();
+
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!authLoading && !user) navigate("/login");
+  }, [authLoading, user, navigate]);
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -33,7 +39,7 @@ export function CreatePage() {
 
     // 上傳到 R2
     try {
-      const { publicUrl } = await upload(file, { folder: "references" });
+      const { publicUrl } = await upload(file, { folder: "artworks" });
       setUploadedUrl(publicUrl);
     } catch (err: unknown) {
       setUploadError(err instanceof Error ? err.message : "上傳失敗");
@@ -48,6 +54,36 @@ export function CreatePage() {
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
+  async function handleSubmit() {
+    if (!user) return;
+    if (!uploadedUrl) {
+      setError("請先上傳一張作品圖片。");
+      return;
+    }
+    if (!title.trim()) {
+      setError("請填寫作品標題。");
+      return;
+    }
+
+    setSubmitting(true);
+    setError(null);
+    try {
+      const artistId = await getMyArtistProfileId(user.id);
+      if (!artistId) throw new Error("找不到你的創作者檔案，請重新整理再試一次。");
+      const artworkId = await createArtwork(artistId, {
+        title,
+        description: desc,
+        coverImageUrl: uploadedUrl,
+      });
+      navigate(`/artwork/${artworkId}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "發佈失敗，請稍後再試。");
+      setSubmitting(false);
+    }
+  }
+
+  const canSubmit = Boolean(uploadedUrl) && title.trim().length > 0 && !uploading && !submitting;
+
   return (
     <div className="h-full overflow-y-auto pb-28 [&::-webkit-scrollbar]:hidden bg-[#141414]">
       {/* Header */}
@@ -55,10 +91,10 @@ export function CreatePage() {
         <div className="flex items-center justify-between">
           <div>
             <p className="text-gray-500 text-xs tracking-widest mb-0.5">CREATE</p>
-            <h1 className="text-white text-xl font-semibold">新增委託需求</h1>
+            <h1 className="text-white text-xl font-semibold">新增作品</h1>
           </div>
           <div className="px-3 py-1.5 bg-white/15 border border-white/30 rounded-full">
-            <span className="text-white text-xs font-medium">委託單</span>
+            <span className="text-white text-xs font-medium">作品</span>
           </div>
         </div>
       </div>
@@ -75,13 +111,13 @@ export function CreatePage() {
 
         <div
           onClick={() => !uploading && fileInputRef.current?.click()}
-          className={`w-full h-44 rounded-2xl border-2 border-dashed flex flex-col items-center justify-center gap-2 transition-all relative overflow-hidden
+          className={`w-full h-56 rounded-2xl border-2 border-dashed flex flex-col items-center justify-center gap-2 transition-all relative overflow-hidden
             ${uploading ? "cursor-wait border-white/40 bg-white/5" : "cursor-pointer hover:border-white/40 hover:bg-white/5 border-white/15"}`}
         >
           {/* 預覽圖 */}
           {previewUrl && (
             <>
-              <img src={previewUrl} alt="reference" className="absolute inset-0 w-full h-full object-cover" />
+              <img src={previewUrl} alt="作品預覽" className="absolute inset-0 w-full h-full object-cover" />
               <div className="absolute inset-0 bg-black/30" />
 
               {/* 上傳中 overlay */}
@@ -95,7 +131,10 @@ export function CreatePage() {
               {/* 上傳完成 - 移除按鈕 */}
               {!uploading && (
                 <button
-                  onClick={(e) => { e.stopPropagation(); handleRemoveImage(); }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleRemoveImage();
+                  }}
                   className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/60 flex items-center justify-center hover:bg-black/80 transition-colors z-10"
                 >
                   <X size={14} className="text-white" />
@@ -113,10 +152,10 @@ export function CreatePage() {
           {/* 空狀態 */}
           {!previewUrl && !uploadError && (
             <>
-              <div className="w-10 h-10 rounded-full bg-white/6 flex items-center justify-center group-hover:bg-white/15 transition-colors">
+              <div className="w-10 h-10 rounded-full bg-white/6 flex items-center justify-center">
                 <ImagePlus size={20} className="text-gray-500" />
               </div>
-              <p className="text-gray-500 text-xs">點擊上傳參考圖</p>
+              <p className="text-gray-500 text-xs">點擊上傳作品圖片</p>
               <p className="text-gray-700 text-[10px]">支援 JPG、PNG、WebP、GIF</p>
             </>
           )}
@@ -134,13 +173,14 @@ export function CreatePage() {
         <div>
           <label className="text-gray-400 text-xs mb-2 flex items-center gap-1.5">
             <Type size={12} />
-            委託標題
+            作品標題
           </label>
           <input
             type="text"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="例：A4 社團活動海報設計"
+            maxLength={200}
+            placeholder="例：城市速寫 #12"
             className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-white/40 focus:bg-white/8 transition-all placeholder:text-gray-600"
           />
         </div>
@@ -149,70 +189,31 @@ export function CreatePage() {
         <div>
           <label className="text-gray-400 text-xs mb-2 flex items-center gap-1.5">
             <FileText size={12} />
-            需求描述
+            作品說明
           </label>
           <textarea
             value={desc}
             onChange={(e) => setDesc(e.target.value)}
-            placeholder="描述你的作品需求、風格偏好、色彩方向等..."
+            placeholder="說說這件作品的靈感、媒材或創作過程...（選填）"
             rows={4}
             className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-white/40 focus:bg-white/8 transition-all placeholder:text-gray-600 resize-none"
           />
         </div>
 
-        {/* Budget & Deadline */}
-        <div className="flex gap-3">
-          <div className="flex-1">
-            <label className="text-gray-400 text-xs mb-2 flex items-center gap-1.5">
-              <DollarSign size={12} />
-              預算 (NT$)
-            </label>
-            <input
-              type="number"
-              value={budget}
-              onChange={(e) => setBudget(e.target.value)}
-              placeholder="1000"
-              className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-white/40 focus:bg-white/8 transition-all placeholder:text-gray-600"
-            />
-          </div>
-          <div className="flex-1">
-            <label className="text-gray-400 text-xs mb-2 flex items-center gap-1.5">
-              <Calendar size={12} />
-              交付日期
-            </label>
-            <input
-              type="date"
-              value={deadline}
-              onChange={(e) => setDeadline(e.target.value)}
-              className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-white/40 focus:bg-white/8 transition-all [color-scheme:dark]"
-            />
-          </div>
-        </div>
-
-        {/* Step Cards */}
-        <div className="bg-white/3 border border-white/6 rounded-2xl p-4">
-          <p className="text-gray-400 text-xs mb-3 tracking-wide">委託流程說明</p>
-          <div className="space-y-3">
-            {steps.map((step, idx) => (
-              <div key={idx} className="flex items-center gap-3">
-                <div className="w-7 h-7 rounded-full bg-white/10 border border-white/20 flex items-center justify-center flex-shrink-0">
-                  <span className="text-white text-[9px] font-bold">{step.num}</span>
-                </div>
-                <div>
-                  <p className="text-gray-200 text-xs font-medium">{step.title}</p>
-                  <p className="text-gray-500 text-[10px]">{step.desc}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
+        {/* Error */}
+        {error && (
+          <p className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3">
+            {error}
+          </p>
+        )}
 
         {/* Submit Button */}
         <button
-          disabled={uploading}
+          onClick={handleSubmit}
+          disabled={!canSubmit}
           className="w-full py-4 rounded-2xl bg-white/10 text-white font-semibold text-sm shadow-[0_0_20px_rgba(255,255,255,0.12)] hover:shadow-[0_0_30px_rgba(255,255,255,0.18)] transition-shadow disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          發佈委託需求
+          {submitting ? "發佈中…" : "發佈作品"}
         </button>
       </div>
     </div>

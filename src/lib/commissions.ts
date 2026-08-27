@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import { getOrCreateConversation } from "./chat";
 
 /**
  * Data access for the structured collaboration invitation flow.
@@ -44,6 +45,12 @@ function assertCommissionDraft(draft: CommissionDraft): void {
   }
 }
 
+/** `<input type="date">` reports an unset value as "", which Postgres
+ *  rejects for date/timestamptz columns — needs to be a real null. */
+function toDateOrNull(value: string): string | null {
+  return value.trim() === "" ? null : value;
+}
+
 export interface Commission {
   id: number;
   chatId: number | null;
@@ -77,7 +84,7 @@ const SELECT = `
   reference_urls, status, decline_reason, reply_note, viewed_at, created_at,
   client:users!commission_requests_client_id_fkey ( id, name, username, avatar_url ),
   artist:artist_profiles!commission_requests_artist_id_fkey (
-    id, user_id, users ( id, name, username, avatar_url )
+    id, user_id, users!artist_profiles_user_id_fkey ( id, name, username, avatar_url )
   )
 `;
 
@@ -130,9 +137,9 @@ export async function createCommission(
       // Keep the legacy single-value columns populated so older screens and
       // any existing reports keep working.
       budget: draft.budgetMax,
-      deadline: draft.finalDueDate,
-      draft_due_date: draft.draftDueDate,
-      final_due_date: draft.finalDueDate,
+      deadline: toDateOrNull(draft.finalDueDate),
+      draft_due_date: toDateOrNull(draft.draftDueDate),
+      final_due_date: toDateOrNull(draft.finalDueDate),
       contact: draft.contact,
       has_assets: draft.hasAssets,
       reference_urls: draft.referenceUrls ?? [],
@@ -143,6 +150,115 @@ export async function createCommission(
 
   if (error) throw error;
   return toCommission(data);
+}
+
+/**
+ * Posts a commission with no artist_id at all — visible to every creator on
+ * the home feed's "未指定的委託" tab. Any number of them can inquire; the
+ * client picks one later from inside that chat (inviteCommissionArtist()).
+ * Contrast with createCommission(), which targets one specific (already
+ * published) creator directly from their own profile page.
+ */
+export async function createOpenCommission(clientId: string, draft: CommissionDraft): Promise<Commission> {
+  assertCommissionDraft(draft);
+  const { data, error } = await supabase
+    .from("commission_requests")
+    .insert({
+      artist_id: null,
+      client_id: clientId,
+      title: draft.orgName,
+      org_name: draft.orgName,
+      description: draft.description,
+      services: draft.services,
+      budget_min: draft.budgetMin,
+      budget_max: draft.budgetMax,
+      // Keep the legacy single-value columns populated so older screens and
+      // any existing reports keep working.
+      budget: draft.budgetMax,
+      deadline: toDateOrNull(draft.finalDueDate),
+      draft_due_date: toDateOrNull(draft.draftDueDate),
+      final_due_date: toDateOrNull(draft.finalDueDate),
+      contact: draft.contact,
+      has_assets: draft.hasAssets,
+      reference_urls: draft.referenceUrls ?? [],
+      status: "pending",
+    })
+    .select(SELECT)
+    .single();
+
+  if (error) throw error;
+  return toCommission(data);
+}
+
+/** Open commissions any signed-in creator can browse and inquire about. */
+export async function listOpenCommissions(): Promise<Commission[]> {
+  const { data, error } = await supabase
+    .from("commission_requests")
+    .select(SELECT)
+    .is("artist_id", null)
+    .eq("status", "pending")
+    .order("created_at", { ascending: false });
+
+  if (error) throw error;
+  return (data ?? []).map(toCommission);
+}
+
+/** Fetches one commission's current state — used to re-check whether an
+ *  open commission a chat referenced is still unclaimed. */
+export async function getCommission(commissionId: number): Promise<Commission | null> {
+  const { data, error } = await supabase
+    .from("commission_requests")
+    .select(SELECT)
+    .eq("id", commissionId)
+    .maybeSingle();
+  if (error) throw error;
+  return data ? toCommission(data) : null;
+}
+
+/**
+ * "諮詢詳情" from the open-commissions feed. Doesn't claim anything — any
+ * number of creators can inquire about the same open commission, each in
+ * their own 1:1 chat with the client. Tags the opening message with the
+ * commission id so ChatRoomPage can offer the client a one-tap "邀請他接案"
+ * once they've decided who they like.
+ */
+export async function inquireCommission(commission: Commission, myUserId: string): Promise<number> {
+  const chatId = await getOrCreateConversation(myUserId, commission.clientId);
+  if (!chatId) throw new Error("無法建立對話。");
+
+  const { error } = await supabase.from("messages").insert({
+    chat_id: chatId,
+    sender_id: myUserId,
+    type: "commission",
+    content: {
+      commission_id: commission.id,
+      kind: "inquiry",
+      text: `我對「${commission.orgName}」這則委託有興趣，想聊聊細節。`,
+    },
+  });
+  if (error) throw error;
+
+  await supabase.from("conversations").update({ last_message_at: new Date().toISOString() }).eq("id", chatId);
+  return chatId;
+}
+
+/**
+ * The client's one-click "邀請他接案" from inside a chat — no form to
+ * refill. Just assigns the commission to that creator; it still shows up
+ * as a normal pending invite in their OrdersPage inbox, and nothing about
+ * the commission actually starts until they accept it themselves.
+ */
+export async function inviteCommissionArtist(commissionId: number, artistId: number): Promise<void> {
+  const { data, error } = await supabase
+    .from("commission_requests")
+    .update({ artist_id: artistId, updated_at: new Date().toISOString() })
+    .eq("id", commissionId)
+    .is("artist_id", null)
+    .eq("status", "pending")
+    .select("id")
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) throw new Error("這則委託已經指定給別人了，請重新整理。");
 }
 
 /** `received` is the artist's inbox; `sent` is what the current user issued. */
