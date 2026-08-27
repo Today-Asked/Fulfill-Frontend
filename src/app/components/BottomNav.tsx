@@ -34,6 +34,27 @@ export function BottomNav() {
       .then(({ count }) => setHasUnread((count ?? 0) > 0));
   }, [user, location.pathname]);
 
+  if (!user) {
+    return (
+      <div className="pointer-events-none fixed inset-x-0 bottom-0 z-50 px-6 pb-6 pt-2 lg:hidden">
+        <div className="pointer-events-auto mx-auto flex max-w-[420px] items-center gap-3 rounded-full border border-white/10 bg-black/70 px-3 py-2 backdrop-blur-2xl">
+          <button
+            onClick={() => navigate("/login")}
+            className="flex-1 rounded-full py-2.5 text-sm font-medium text-white/70 transition-colors hover:text-white"
+          >
+            登入
+          </button>
+          <button
+            onClick={() => navigate("/register")}
+            className="flex-1 rounded-full bg-paper py-2.5 text-sm font-semibold text-ink transition-colors hover:bg-brand-muted"
+          >
+            註冊
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="pointer-events-none fixed inset-x-0 bottom-0 z-50 px-6 pb-6 pt-2 lg:hidden">
       <div className="pointer-events-auto mx-auto flex max-w-[420px] items-center justify-between rounded-full border border-white/10 bg-black/70 px-5 py-3 backdrop-blur-2xl">

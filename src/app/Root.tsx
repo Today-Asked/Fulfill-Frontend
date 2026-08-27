@@ -14,6 +14,7 @@ export function Root() {
   const { user, loading, profileChecked, needsOnboarding, isPasswordRecovery } = useAuth();
 
   const isAuthPage    = ["/login", "/register", "/forgot-password", "/welcome"].includes(location.pathname);
+  const isHome        = location.pathname === "/";
   const isOnboarding  = location.pathname === "/onboarding";
   const isResetPassword = location.pathname === "/reset-password";
 
@@ -23,7 +24,9 @@ export function Root() {
 
   if (isResetPassword) return <Frame isAuthPage={false} isOnboarding={false}><Outlet /></Frame>;
 
-  if (!user && !isAuthPage) return <Navigate to="/welcome" replace />;
+  // Guests land on the homepage itself (with a stripped-down nav), not a
+  // separate splash page — /welcome is only reachable directly by URL now.
+  if (!user && !isAuthPage && !isHome) return <Navigate to="/welcome" replace />;
 
   if (user && isAuthPage) return <Navigate to="/" replace />;
 
