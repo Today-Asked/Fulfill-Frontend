@@ -33,6 +33,34 @@ export function TopNav() {
     navigate(q ? `/search?q=${encodeURIComponent(q)}` : "/search");
   }
 
+  if (!user) {
+    return (
+      <header className="sticky top-0 z-40 hidden border-b border-white/8 bg-ink/90 backdrop-blur-xl lg:block">
+        <div className="mx-auto flex w-full max-w-[1440px] items-center justify-between gap-8 px-10 py-3.5">
+          <Link to="/" className="flex shrink-0 items-center gap-2.5" aria-label="FULFILL 首頁">
+            <img src="/logo-mark.svg" alt="" className="h-7 w-auto" />
+            <span className="text-xl font-semibold tracking-tight">FULFILL</span>
+          </Link>
+
+          <nav className="flex items-center gap-3">
+            <Link
+              to="/login"
+              className="flex h-10 items-center rounded-full px-5 text-sm font-medium text-white/70 transition-colors hover:text-white"
+            >
+              登入
+            </Link>
+            <Link
+              to="/register"
+              className="flex h-10 items-center rounded-full bg-paper px-5 text-sm font-semibold text-ink transition-colors hover:bg-brand-muted"
+            >
+              註冊
+            </Link>
+          </nav>
+        </div>
+      </header>
+    );
+  }
+
   return (
     <header className="sticky top-0 z-40 hidden border-b border-white/8 bg-ink/90 backdrop-blur-xl lg:block">
       <div className="mx-auto flex w-full max-w-[1440px] items-center gap-8 px-10 py-3.5">
