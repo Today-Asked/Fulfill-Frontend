@@ -12,7 +12,6 @@ export function OnboardingPage() {
   const [username, setUsername] = useState("");
   const [name, setName] = useState("");
   const [bio, setBio] = useState("");
-  const [isArtist, setIsArtist] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -38,20 +37,6 @@ export function OnboardingPage() {
       setError(updateError.message);
       setLoading(false);
       return;
-    }
-
-    // 2. 若選擇開放委託，建立 artist_profiles
-    if (isArtist) {
-      const { error: artistError } = await supabase
-        .from("artist_profiles")
-        .insert({ user_id: user.id });
-
-      if (artistError && artistError.code !== "23505") {
-        // 23505 = unique violation，已存在就不管
-        setError(artistError.message);
-        setLoading(false);
-        return;
-      }
     }
 
     await refreshProfile();
@@ -143,35 +128,6 @@ export function OnboardingPage() {
             className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-white/60 focus:bg-white/8 transition-all resize-none"
           />
           <p className="text-xs text-gray-600 text-right">{bio.length} / 160</p>
-        </div>
-
-        {/* Artist toggle */}
-        <div
-          onClick={() => setIsArtist((v) => !v)}
-          className={`flex items-center justify-between px-4 py-4 rounded-2xl border cursor-pointer transition-all ${
-            isArtist
-              ? "bg-white/10 border-white/40"
-              : "bg-white/5 border-white/10"
-          }`}
-        >
-          <div>
-            <p className="text-sm font-medium text-white">我是創作者，開放委託</p>
-            <p className="text-xs text-gray-500 mt-0.5">
-              你可以接受來自客戶的委託需求
-            </p>
-          </div>
-          {/* Toggle pill */}
-          <div
-            className={`w-11 h-6 rounded-full transition-all shrink-0 ml-4 relative ${
-              isArtist ? "bg-white" : "bg-white/10"
-            }`}
-          >
-            <div
-              className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${
-                isArtist ? "left-6" : "left-1"
-              }`}
-            />
-          </div>
         </div>
 
         {/* Error */}

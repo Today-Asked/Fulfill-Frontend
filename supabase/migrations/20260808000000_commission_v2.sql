@@ -432,3 +432,60 @@ drop policy if exists "artist_profiles: published or self read" on public.artist
 create policy "artist_profiles: published or self read"
   on public.artist_profiles for select
   using (is_published = true or user_id = auth.uid());
+
+
+-- =====================================================================
+-- Everyone is a creator
+--
+-- Removes the separate "become a creator" opt-in from onboarding. Every
+-- account can now post artworks and receive commission invitations —
+-- anyone could already *send* one (see "commission_requests: client
+-- insert" above, which never required the sender to lack a profile).
+--
+-- This does not touch artworks.artist_id / commission_requests.artist_id
+-- or any existing RLS policy: they all resolve "is this user the artist?"
+-- by looking up a matching artist_profiles row, so giving every user
+-- exactly one row is enough on its own — no FK or policy rewrite needed.
+-- =====================================================================
+
+-- One profile per user, enforced from here on. If this statement fails,
+-- some user already has duplicate artist_profiles rows (shouldn't happen,
+-- since nothing enforced it before this). That needs manual cleanup
+-- before re-running — not an automatic delete, since artworks and
+-- commission_requests cascade off artist_profiles.id and a blind dedupe
+-- could destroy real content.
+do $$ begin
+  alter table public.artist_profiles
+    add constraint artist_profiles_user_id_unique unique (user_id);
+exception when duplicate_object then null; end $$;
+
+-- Backfill: give every existing user who never toggled "開放委託" a
+-- profile too. Stays unpublished (is_published default false) so empty
+-- profiles don't flood creator search — publishing stays opt-in.
+insert into public.artist_profiles (user_id)
+select u.id
+from public.users u
+left join public.artist_profiles ap on ap.user_id = u.id
+where ap.user_id is null
+on conflict (user_id) do nothing;
+
+-- New signups get a profile automatically from now on, same trigger that
+-- already creates their `users` row. Re-defined here with an explicit
+-- search_path, matching accept_commission() above.
+create or replace function public.handle_new_user()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  insert into public.users (id, email)
+  values (new.id, new.email);
+
+  insert into public.artist_profiles (user_id)
+  values (new.id)
+  on conflict (user_id) do nothing;
+
+  return new;
+end;
+$$;

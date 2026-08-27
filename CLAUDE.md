@@ -4,22 +4,28 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Switching Supabase Projects
 
+We push schema changes with the Supabase CLI now, not by hand-pasting SQL into the Dashboard SQL Editor. Hand-pasting builds the tables fine but never writes to the project's `supabase_migrations.schema_migrations` tracking table, so a later `db push` can't tell those migrations already ran and tries to replay all of them from `create table` — that's exactly what happened switching this repo over. Keep everything going through the CLI from here on so the tracking table and `supabase/migrations/` never drift apart again.
+
 When pointing to a new Supabase project, do these steps in order:
 
-**1. Run migrations** in the new project's SQL Editor (in order):
-```
-supabase/migrations/20260420000000_init.sql       ← full schema + RLS + seed tags
-supabase/migrations/20260420000001_delete_account.sql
-supabase/migrations/20260528000000_chat_realtime_read.sql  ← Realtime + read-receipt policy
+**1. Link the CLI to the new project** (this also writes `supabase/.temp/project-ref`, so there's no separate manual step for that anymore):
+```bash
+npx supabase link --project-ref <new-project-ref>
 ```
 
-**2. Update env file** (`.env.mytest` for local dev):
+**2. Push all migrations**:
+```bash
+npx supabase db push
+```
+This runs everything in `supabase/migrations/` in order, on a brand-new project. If you're ever re-pointing the CLI at a project whose schema was *already* built by hand (or by an older push), run `npx supabase migration list` first to see what the CLI thinks is applied, and `npx supabase migration repair --status applied <version>` for anything that's actually already there — don't add `if not exists` to old migration files to route around it.
+
+**3. Update env file** (`.env.mytest` for local dev):
 ```
 VITE_SUPABASE_URL=https://<new-project-ref>.supabase.co
 VITE_SUPABASE_ANON_KEY=<new-anon-key>
 ```
 
-**3. Deploy edge function**:
+**4. Deploy edge function**:
 ```bash
 supabase functions deploy generate-upload-url --project-ref <new-project-ref>
 ```
@@ -32,9 +38,12 @@ R2_BUCKET_NAME
 R2_PUBLIC_URL
 ```
 
-**4. Update project ref** (if using Supabase CLI):
+### Adding a new migration
+
 ```bash
-echo "<new-project-ref>" > supabase/.temp/project-ref
+npx supabase migration new <name>   # creates a timestamped file in supabase/migrations/
+# edit the file — guard every statement (if not exists / do $$ ... exception when duplicate_object) so it's safe to re-run
+npx supabase db push                # applies it and records it as applied
 ```
 
 ---
@@ -75,11 +84,11 @@ Single shared client imported everywhere as `import { supabase } from "../../lib
 
 ### Database schema (key tables)
 - `users` — mirrors `auth.users` (UUID pk), created automatically via trigger on signup
-- `artist_profiles` — separate row per artist; a user becomes an artist by having a row here
+- `artist_profiles` — one row per user, created automatically by the `handle_new_user()` trigger on signup (as of `commission_v2`; used to be an opt-in toggle in onboarding). Every account can post artworks and receive commission invitations; `is_published` (default `false`) gates whether a profile shows up in creator search, independent of whether the row exists
 - `artworks` + `artwork_media` — artworks belong to `artist_profiles`, not directly to `users`
 - `conversations` — two-party chat; **enforces `usera_id < userb_id`** (app must sort UUIDs before insert)
 - `messages` — `content` is jsonb; text messages use `{ text: "..." }`; `type` enum: `text | image | file | commission | sticker`
-- `commission_requests` — linked to `conversations`; not yet wired to UI
+- `commission_requests` — the structured invitation flow (`src/lib/commissions.ts`, `OrdersPage.tsx`); accepting one runs through the `accept_commission()` db function, which opens/reuses a `conversations` row and posts the opening message atomically
 
 All tables have RLS. Migrations live in `supabase/migrations/`.
 
