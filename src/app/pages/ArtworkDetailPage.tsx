@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router";
-import { ArrowLeft, Heart, ImageOff } from "lucide-react";
+import { ArrowLeft, Heart, Bookmark, ImageOff } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import { useAuth } from "../../contexts/AuthContext";
 
@@ -35,6 +35,7 @@ export function ArtworkDetailPage() {
   const [creator,      setCreator]      = useState<CreatorInfo | null>(null);
   const [moreArtworks, setMoreArtworks] = useState<MoreArtwork[]>([]);
   const [isLiked,      setIsLiked]      = useState(false);
+  const [isSaved,      setIsSaved]      = useState(false);
   const [loading,      setLoading]      = useState(true);
   const [notFound,     setNotFound]     = useState(false);
 
@@ -53,7 +54,7 @@ export function ArtworkDetailPage() {
       if (error || !aw) { setNotFound(true); setLoading(false); return; }
       setArtwork(aw);
 
-      const [apRes, moreRes, likeRes] = await Promise.all([
+      const [apRes, moreRes, likeRes, saveRes] = await Promise.all([
         // 創作者
         supabase
           .from("artist_profiles")
@@ -81,6 +82,16 @@ export function ArtworkDetailPage() {
               .eq("artwork_id", aw.id)
               .maybeSingle()
           : Promise.resolve({ data: null }),
+
+        // 收藏狀態
+        user
+          ? supabase
+              .from("saves")
+              .select("artwork_id")
+              .eq("user_id", user.id)
+              .eq("artwork_id", aw.id)
+              .maybeSingle()
+          : Promise.resolve({ data: null }),
       ]);
 
       if (apRes.data?.users) {
@@ -93,6 +104,7 @@ export function ArtworkDetailPage() {
       }
       setMoreArtworks(moreRes.data ?? []);
       setIsLiked(!!(likeRes as any).data);
+      setIsSaved(!!(saveRes as any).data);
       setLoading(false);
     })();
   }, [id, user]);
@@ -109,6 +121,18 @@ export function ArtworkDetailPage() {
     }
   }
 
+  async function handleToggleSave() {
+    if (!user) { navigate("/login"); return; }
+    if (!artwork) return;
+    if (isSaved) {
+      await supabase.from("saves").delete().eq("user_id", user.id).eq("artwork_id", artwork.id);
+      setIsSaved(false);
+    } else {
+      await supabase.from("saves").insert({ user_id: user.id, artwork_id: artwork.id });
+      setIsSaved(true);
+    }
+  }
+
   const dateStr = artwork?.created_at
     ? new Date(artwork.created_at)
         .toLocaleDateString("zh-TW", { year: "numeric", month: "2-digit", day: "2-digit" })
@@ -118,8 +142,8 @@ export function ArtworkDetailPage() {
   // ── Loading ──────────────────────────────────────────────────────────────
   if (loading) {
     return (
-      <div className="h-full bg-black overflow-y-auto pb-28 [&::-webkit-scrollbar]:hidden animate-pulse">
-        <div className="px-5 pt-12 pb-3 flex justify-between">
+      <div className="animate-pulse bg-black pb-10">
+        <div className="flex justify-between px-5 pb-3 pt-6">
           <div className="w-6 h-6 bg-white/10 rounded" />
           <div className="w-20 h-4 bg-white/10 rounded" />
         </div>
@@ -137,7 +161,7 @@ export function ArtworkDetailPage() {
   // ── Not found ────────────────────────────────────────────────────────────
   if (notFound || !artwork) {
     return (
-      <div className="h-full bg-black flex flex-col items-center justify-center gap-4">
+      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 bg-black">
         <ImageOff size={36} className="text-white/20" />
         <p className="text-gray-500 text-sm">找不到這件作品</p>
         <button onClick={() => navigate(-1)} className="text-[#FFFFFF] text-sm underline underline-offset-2">
@@ -149,7 +173,7 @@ export function ArtworkDetailPage() {
 
   // ── Main ─────────────────────────────────────────────────────────────────
   return (
-    <div className="h-full bg-black overflow-y-auto pb-28 [&::-webkit-scrollbar]:hidden">
+    <div className="bg-black pb-10">
 
       {/* Top bar */}
       <div className="flex items-center justify-between px-5 pt-12 pb-3">
@@ -177,26 +201,23 @@ export function ArtworkDetailPage() {
       {/* Info — 黑底白字，置中 */}
       <div className="px-6 pt-6 pb-2">
 
-        {/* Title + heart — 左側 spacer 與愛心等寬，讓標題真正置中 */}
+        {/* Title + actions */}
         <div className="flex items-start mb-2">
-          <div className="w-9 flex-shrink-0" />
+          <div className="w-[76px] flex-shrink-0" />
           <h1
             className="flex-1 text-center text-3xl font-bold text-white leading-snug"
             style={{ fontFamily: "'Playfair Display', serif" }}
           >
             {artwork.title ?? "未命名作品"}
           </h1>
-          <button
-            onClick={handleToggleLike}
-            className="mt-1 w-9 flex-shrink-0 flex justify-end active:scale-90 transition-transform"
-            aria-label={isLiked ? "取消喜愛" : "加入喜愛"}
-          >
-            <Heart
-              size={26}
-              strokeWidth={1.6}
-              className={`transition-colors ${isLiked ? "text-[#FFFFFF] fill-[#FFFFFF]" : "text-white/30 hover:text-[#FFFFFF]"}`}
-            />
-          </button>
+          <div className="mt-1 flex w-[76px] flex-shrink-0 justify-end gap-3">
+            <button onClick={handleToggleLike} className="active:scale-90 transition-transform" aria-label={isLiked ? "取消喜愛" : "加入喜愛"}>
+              <Heart size={25} strokeWidth={1.6} className={`transition-colors ${isLiked ? "fill-white text-white" : "text-white/30 hover:text-white"}`} />
+            </button>
+            <button onClick={handleToggleSave} className="active:scale-90 transition-transform" aria-label={isSaved ? "取消收藏" : "收藏作品"}>
+              <Bookmark size={25} strokeWidth={1.6} className={`transition-colors ${isSaved ? "fill-white text-white" : "text-white/30 hover:text-white"}`} />
+            </button>
+          </div>
         </div>
 
         {/* Author — 置中，可點擊 */}

@@ -18,6 +18,7 @@ import { NotificationsPage } from "./pages/NotificationsPage";
 import { InvitePage } from "./pages/InvitePage";
 import { SearchPage } from "./pages/SearchPage";
 import { CommissionProfilePage } from "./pages/CommissionProfilePage";
+import { EditProfilePage } from "./pages/EditProfilePage";
 
 export const router = createBrowserRouter([
   {
@@ -36,6 +37,7 @@ export const router = createBrowserRouter([
       { path: "notifications", Component: NotificationsPage },
       { path: "orders", Component: OrdersPage },
       { path: "profile", Component: ProfilePage },
+      { path: "profile/edit", Component: EditProfilePage },
       { path: "profile/commission", Component: CommissionProfilePage },
       { path: "register", Component: RegisterPage },
       { path: "welcome", Component: WelcomePage },

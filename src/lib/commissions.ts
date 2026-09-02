@@ -215,6 +215,18 @@ export async function getCommission(commissionId: number): Promise<Commission | 
   return data ? toCommission(data) : null;
 }
 
+/** Active commissions attached to one conversation, shown inside the chat. */
+export async function listConversationCommissions(chatId: number): Promise<Commission[]> {
+  const { data, error } = await supabase
+    .from("commission_requests")
+    .select(SELECT)
+    .eq("chat_id", chatId)
+    .in("status", ["accepted", "in_progress", "delivered"])
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map(toCommission);
+}
+
 /**
  * "諮詢詳情" from the open-commissions feed. Doesn't claim anything — any
  * number of creators can inquire about the same open commission, each in

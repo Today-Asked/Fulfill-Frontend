@@ -6,6 +6,7 @@ export interface CreateArtworkInput {
   title: string;
   description: string;
   coverImageUrl: string;
+  mediaUrls?: string[];
 }
 
 export async function createArtwork(artistId: number, input: CreateArtworkInput): Promise<number> {
@@ -26,5 +27,17 @@ export async function createArtwork(artistId: number, input: CreateArtworkInput)
     .single();
 
   if (error) throw error;
+
+  const mediaUrls = (input.mediaUrls?.length ? input.mediaUrls : [input.coverImageUrl]).filter(Boolean);
+  const { error: mediaError } = await supabase.from("artwork_media").insert(
+    mediaUrls.map((mediaUrl, sortOrder) => ({
+      artwork_id: data.id,
+      media_url: mediaUrl,
+      media_type: "image",
+      sort_order: sortOrder,
+    })),
+  );
+
+  if (mediaError) throw mediaError;
   return data.id;
 }

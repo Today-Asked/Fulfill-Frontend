@@ -252,6 +252,41 @@ export async function toggleSaveCreator(userId: string, artistId: number): Promi
   return true;
 }
 
+export async function listFollowedUserIds(userId: string): Promise<string[]> {
+  const { data, error } = await supabase
+    .from("follows")
+    .select("following_id")
+    .eq("follower_id", userId);
+  if (error) throw error;
+  return (data ?? []).map((row) => row.following_id);
+}
+
+export async function toggleFollowCreator(userId: string, creatorUserId: string): Promise<boolean> {
+  const { data: existing, error: lookupError } = await supabase
+    .from("follows")
+    .select("following_id")
+    .eq("follower_id", userId)
+    .eq("following_id", creatorUserId)
+    .maybeSingle();
+  if (lookupError) throw lookupError;
+
+  if (existing) {
+    const { error } = await supabase
+      .from("follows")
+      .delete()
+      .eq("follower_id", userId)
+      .eq("following_id", creatorUserId);
+    if (error) throw error;
+    return false;
+  }
+
+  const { error } = await supabase
+    .from("follows")
+    .insert({ follower_id: userId, following_id: creatorUserId });
+  if (error) throw error;
+  return true;
+}
+
 /* ------------------------------------------------------------------ *
  * Trust and safety
  * ------------------------------------------------------------------ */
