@@ -10,7 +10,6 @@ import {
 import { useAuth } from "../../contexts/AuthContext";
 import { supabase } from "../../lib/supabase";
 import { AvatarUpload } from "../components/AvatarUpload";
-import { ArtworkUploadSheet } from "../components/ArtworkUploadSheet";
 
 interface UserProfile {
   username: string;
@@ -57,7 +56,6 @@ export function ProfilePage() {
   const [likedArtworks, setLikedArtworks] = useState<LikedArtwork[]>([]);
   const [savedArtworks, setSavedArtworks] = useState<LikedArtwork[]>([]);
   const [activeTab, setActiveTab]       = useState(0);
-  const [showUpload, setShowUpload]     = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showAccountMenu, setShowAccountMenu] = useState(false);
   const [deleting, setDeleting]         = useState(false);
@@ -482,7 +480,7 @@ export function ProfilePage() {
               </div>
               <p className="text-gray-500 text-sm">尚無作品</p>
               <button
-                onClick={() => setShowUpload(true)}
+                onClick={() => navigate("/create")}
                 className="mt-2 px-5 py-2 rounded-full bg-white/8 border border-white/12 text-gray-300 text-xs hover:bg-white/12 transition-colors"
               >
                 上傳第一件作品
@@ -600,7 +598,7 @@ export function ProfilePage() {
                 {/* 新增按鈕（非編輯模式才顯示）*/}
                 {!editMode && (
                   <button
-                    onClick={() => setShowUpload(true)}
+                    onClick={() => navigate("/create")}
                     className="aspect-square rounded-xl border-2 border-dashed border-white/15 flex items-center justify-center hover:border-white/40 hover:bg-white/5 transition-all"
                   >
                     <Plus size={24} className="text-gray-600" />
@@ -640,19 +638,6 @@ export function ProfilePage() {
         )}
 
       </div>
-
-      {/* Artwork upload sheet */}
-      {showUpload && artist && (
-        <ArtworkUploadSheet
-          artistProfileId={artist.id}
-          onClose={() => setShowUpload(false)}
-          onUploaded={(artwork) => {
-            const next = [{ ...artwork, display_order: 0 }, ...artworkOrderRef.current];
-            artworkOrderRef.current = next;
-            setArtworks(next);
-          }}
-        />
-      )}
 
       {connectionView && (
         <ConnectionSheet

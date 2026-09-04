@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router";
-import { ArrowLeft, Heart, Bookmark, ImageOff } from "lucide-react";
+import { ArrowLeft, ChevronLeft, ChevronRight, Heart, Bookmark, ImageOff } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import { useAuth } from "../../contexts/AuthContext";
 
@@ -11,6 +11,11 @@ interface ArtworkDetail {
   cover_image_url: string | null;
   artist_id: number;
   created_at: string;
+}
+
+interface ArtworkMediaItem {
+  id: number;
+  media_url: string | null;
 }
 
 interface CreatorInfo {
@@ -32,6 +37,8 @@ export function ArtworkDetailPage() {
   const { user }  = useAuth();
 
   const [artwork,      setArtwork]      = useState<ArtworkDetail | null>(null);
+  const [media,        setMedia]        = useState<ArtworkMediaItem[]>([]);
+  const [activeImage,  setActiveImage]  = useState(0);
   const [creator,      setCreator]      = useState<CreatorInfo | null>(null);
   const [moreArtworks, setMoreArtworks] = useState<MoreArtwork[]>([]);
   const [isLiked,      setIsLiked]      = useState(false);
@@ -53,8 +60,9 @@ export function ArtworkDetailPage() {
 
       if (error || !aw) { setNotFound(true); setLoading(false); return; }
       setArtwork(aw);
+      setActiveImage(0);
 
-      const [apRes, moreRes, likeRes, saveRes] = await Promise.all([
+      const [apRes, moreRes, likeRes, saveRes, mediaRes] = await Promise.all([
         // 創作者
         supabase
           .from("artist_profiles")
@@ -92,6 +100,13 @@ export function ArtworkDetailPage() {
               .eq("artwork_id", aw.id)
               .maybeSingle()
           : Promise.resolve({ data: null }),
+
+        // 所有圖片（按上傳順序）
+        supabase
+          .from("artwork_media")
+          .select("id, media_url")
+          .eq("artwork_id", aw.id)
+          .order("sort_order", { ascending: true }),
       ]);
 
       if (apRes.data?.users) {
@@ -105,9 +120,31 @@ export function ArtworkDetailPage() {
       setMoreArtworks(moreRes.data ?? []);
       setIsLiked(!!(likeRes as any).data);
       setIsSaved(!!(saveRes as any).data);
+      // 舊資料可能沒有 artwork_media，退回只顯示封面圖
+      setMedia(mediaRes.data?.length ? mediaRes.data : aw.cover_image_url ? [{ id: 0, media_url: aw.cover_image_url }] : []);
       setLoading(false);
     })();
   }, [id, user]);
+
+  const galleryRef = useRef<HTMLDivElement>(null);
+
+  function goToImage(index: number) {
+    const clamped = Math.max(0, Math.min(media.length - 1, index));
+    setActiveImage(clamped);
+    const el = galleryRef.current;
+    if (el) el.scrollTo({ left: clamped * el.clientWidth, behavior: "smooth" });
+  }
+
+  // 電腦版可以用左右鍵切換圖片
+  useEffect(() => {
+    if (media.length < 2) return;
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "ArrowLeft") goToImage(activeImage - 1);
+      else if (e.key === "ArrowRight") goToImage(activeImage + 1);
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [media.length, activeImage]);
 
   async function handleToggleLike() {
     if (!user) { navigate("/login"); return; }
@@ -183,14 +220,62 @@ export function ArtworkDetailPage() {
         {dateStr && <span className="text-white/40 text-xs tracking-widest">{dateStr}</span>}
       </div>
 
-      {/* Cover image — 全寬無 padding，自然縱橫比 */}
-      <div>
-        {artwork.cover_image_url ? (
-          <img
-            src={artwork.cover_image_url}
-            alt={artwork.title ?? ""}
-            className="w-full object-cover"
-          />
+      {/* 圖片輪播 — 全寬無 padding，多張可左右滑動 */}
+      <div className="relative">
+        {media.length > 0 ? (
+          <>
+            <div
+              ref={galleryRef}
+              className="flex w-full snap-x snap-mandatory overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+              onScroll={(e) => {
+                const el = e.currentTarget;
+                setActiveImage(Math.round(el.scrollLeft / el.clientWidth));
+              }}
+            >
+              {media.map((item) => (
+                <img
+                  key={item.id}
+                  src={item.media_url ?? ""}
+                  alt={artwork.title ?? ""}
+                  className="w-full shrink-0 snap-center object-cover"
+                />
+              ))}
+            </div>
+            {media.length > 1 && (
+              <>
+                <span className="absolute right-3 top-3 rounded-full bg-black/60 px-2.5 py-1 text-xs text-white backdrop-blur-sm">
+                  {activeImage + 1} / {media.length}
+                </span>
+                <div className="absolute inset-x-0 bottom-3 flex justify-center gap-1.5">
+                  {media.map((item, index) => (
+                    <span
+                      key={item.id}
+                      className={`h-1.5 rounded-full transition-all ${index === activeImage ? "w-4 bg-white" : "w-1.5 bg-white/40"}`}
+                    />
+                  ))}
+                </div>
+                {/* 電腦版左右箭頭，手機用滑的就好 */}
+                {activeImage > 0 && (
+                  <button
+                    onClick={() => goToImage(activeImage - 1)}
+                    aria-label="上一張"
+                    className="absolute left-3 top-1/2 hidden -translate-y-1/2 rounded-full bg-black/50 p-2 text-white transition-colors hover:bg-black/75 lg:flex"
+                  >
+                    <ChevronLeft size={22} />
+                  </button>
+                )}
+                {activeImage < media.length - 1 && (
+                  <button
+                    onClick={() => goToImage(activeImage + 1)}
+                    aria-label="下一張"
+                    className="absolute right-3 top-1/2 hidden -translate-y-1/2 rounded-full bg-black/50 p-2 text-white transition-colors hover:bg-black/75 lg:flex"
+                  >
+                    <ChevronRight size={22} />
+                  </button>
+                )}
+              </>
+            )}
+          </>
         ) : (
           <div className="w-full aspect-square bg-white/5 flex items-center justify-center">
             <ImageOff size={40} className="text-white/20" />
