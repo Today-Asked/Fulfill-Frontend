@@ -19,6 +19,11 @@ export function useUpload() {
     setProgress(0);
 
     try {
+      if (import.meta.env.VITE_MOCK === "true" || import.meta.env.MODE === "mock") {
+        setProgress(100);
+        return { publicUrl: URL.createObjectURL(file), key: `mock/${file.name}` };
+      }
+
       // 1. 跟 Edge Function 要 Presigned URL（自動帶入 JWT）
       const { data, error } = await supabase.functions.invoke("generate-upload-url", {
         body: {

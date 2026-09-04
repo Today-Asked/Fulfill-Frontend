@@ -1,4 +1,7 @@
 node_modules
+dist
+.wrangler
+.dev.vars*
 
 # env files（含 key，不可上傳）
 .env

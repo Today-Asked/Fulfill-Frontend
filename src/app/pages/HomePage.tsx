@@ -1,15 +1,26 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router";
-import { Search, Bell, Heart, ChevronRight, ImageOff, X, Loader2 } from "lucide-react";
+import { Search, Bell, Heart, Bookmark, ChevronRight, ImageOff, X, Loader2, Menu } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import { useAuth } from "../../contexts/AuthContext";
-import { getOrCreateConversation } from "../../lib/chat";
 import { listOpenCommissions, inquireCommission, type Commission } from "../../lib/commissions";
 
 interface Artwork {
   id: number;
   title: string | null;
   cover_image_url: string | null;
+  tags?: string[];
+}
+
+const artworkCategories = ["全部", "繪畫與插畫", "平面設計", "品牌設計", "攝影", "3D 創作", "動態設計"];
+
+function normalizeArtwork(row: any): Artwork {
+  return {
+    id: row.id,
+    title: row.title,
+    cover_image_url: row.cover_image_url,
+    tags: (row.artwork_tags ?? []).map((item: any) => item.tags?.name).filter(Boolean),
+  };
 }
 
 interface Creator {
@@ -36,6 +47,7 @@ export function HomePage() {
   const [artworks, setArtworks]         = useState<Artwork[]>([]);
   const [creators, setCreators]         = useState<Creator[]>([]);
   const [likes, setLikes]               = useState<Set<number>>(new Set());
+  const [saves, setSaves]               = useState<Set<number>>(new Set());
   const [loadingArtworks, setLoadingArtworks] = useState(true);
   const [loadingCreators, setLoadingCreators] = useState(true);
   // 自己的 artist_profile id（排除自己作品用）
@@ -44,6 +56,8 @@ export function HomePage() {
 
   // ── 搜尋 ───────────────────────────────────────────────────────────────
   const [showSearch, setShowSearch]         = useState(false);
+  const [showCategories, setShowCategories] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState("全部");
   const [searchQuery, setSearchQuery]       = useState("");
   const [searchArtworks, setSearchArtworks] = useState<Artwork[]>([]);
   const [searchCreators, setSearchCreators] = useState<SearchCreator[]>([]);
@@ -106,30 +120,31 @@ export function HomePage() {
     setLoadingArtworks(true);
     setArtworks([]);
     setLikes(new Set());
+    setSaves(new Set());
 
     async function fetchArtworks() {
       let q = supabase
         .from("artworks")
-        .select("id, title, cover_image_url")
+        .select("id, title, cover_image_url, artwork_tags(tags(name))")
         .eq("status", "published")
         .is("deleted_at", null)
         .order("created_at", { ascending: false })
         .limit(6);
       if (myArtistId !== null) q = q.neq("artist_id", myArtistId);
       const { data } = await q;
-      const loaded: Artwork[] = data ?? [];
+      const loaded: Artwork[] = (data ?? []).map(normalizeArtwork);
 
       setArtworks(loaded);
       setLoadingArtworks(false);
 
       // 撈已按讚
       if (user && loaded.length > 0) {
-        const { data: likeData } = await supabase
-          .from("likes")
-          .select("artwork_id")
-          .eq("user_id", user.id)
-          .in("artwork_id", loaded.map((a) => a.id));
+        const [{ data: likeData }, { data: saveData }] = await Promise.all([
+          supabase.from("likes").select("artwork_id").eq("user_id", user.id).in("artwork_id", loaded.map((a) => a.id)),
+          supabase.from("saves").select("artwork_id").eq("user_id", user.id).in("artwork_id", loaded.map((a) => a.id)),
+        ]);
         setLikes(new Set((likeData ?? []).map((l: any) => l.artwork_id)));
+        setSaves(new Set((saveData ?? []).map((s: any) => s.artwork_id)));
       }
     }
 
@@ -148,6 +163,19 @@ export function HomePage() {
     } else {
       await supabase.from("likes").insert({ user_id: user.id, artwork_id: artworkId });
       setLikes((prev) => new Set([...prev, artworkId]));
+    }
+  }
+
+  async function handleToggleSave(artworkId: number, e: React.MouseEvent) {
+    e.stopPropagation();
+    if (!user) { navigate("/login"); return; }
+
+    if (saves.has(artworkId)) {
+      await supabase.from("saves").delete().eq("user_id", user.id).eq("artwork_id", artworkId);
+      setSaves((prev) => { const next = new Set(prev); next.delete(artworkId); return next; });
+    } else {
+      await supabase.from("saves").insert({ user_id: user.id, artwork_id: artworkId });
+      setSaves((prev) => new Set([...prev, artworkId]));
     }
   }
 
@@ -192,7 +220,7 @@ export function HomePage() {
       const [{ data: aw }, { data: cr }] = await Promise.all([
         supabase
           .from("artworks")
-          .select("id, title, cover_image_url")
+          .select("id, title, cover_image_url, artwork_tags(tags(name))")
           .eq("status", "published")
           .is("deleted_at", null)
           .ilike("title", `%${q}%`)
@@ -203,7 +231,7 @@ export function HomePage() {
           .limit(40),
       ]);
 
-      setSearchArtworks(aw ?? []);
+      setSearchArtworks((aw ?? []).map(normalizeArtwork));
       setSearchCreators(
         (cr ?? [])
           .filter((ap: any) => {
@@ -228,79 +256,78 @@ export function HomePage() {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  const slot = (i: number) => artworks[i];
+  const visibleArtworks = selectedCategory === "全部"
+    ? artworks
+    : artworks.filter((artwork) => artwork.tags?.includes(selectedCategory));
 
   return (
-    <div className="h-full overflow-y-auto pb-28 [&::-webkit-scrollbar]:hidden bg-[#141414]">
-      {/* Top bar */}
-      <div className="px-5 pt-12 pb-3 flex items-center justify-between">
-        <button
-          onClick={() => setShowSearch(true)}
-          className="flex items-center justify-center w-11 h-11 bg-white/8 backdrop-blur-md border border-white/12 rounded-full hover:bg-white/14 transition-colors"
-        >
-          <Search size={18} className="text-gray-300" />
-        </button>
-        <button
-          onClick={() => navigate("/notifications")}
-          className="w-9 h-9 rounded-full bg-white/5 border border-white/10 flex items-center justify-center relative hover:bg-white/10 transition-colors"
-        >
-          <Bell size={17} className="text-white" />
-        </button>
-      </div>
+    <div className="min-h-[100dvh] bg-[#090909] pb-10">
+      {/* Compact identity bar inspired by the supplied mobile reference. */}
+      <header className="px-3 pb-3 pt-7 sm:px-5">
+        <div className="flex items-center justify-between px-1">
+          <img src="/logo-mark.svg" alt="Fulfill" className="h-9 w-auto" />
+          <button onClick={() => navigate("/notifications")} aria-label="查看通知" className="-mr-1 grid h-10 w-10 place-items-center rounded-xl text-white/55 transition-colors hover:bg-white/8 hover:text-white active:scale-[0.98]">
+            <Bell size={19} strokeWidth={1.8} />
+          </button>
+        </div>
+
+        <div className="mt-4 flex items-center gap-2">
+          <button onClick={() => setShowSearch(true)} className="flex h-11 min-w-0 flex-1 items-center rounded-full bg-[#f2f2ee] px-4 text-left text-sm text-black shadow-[inset_0_-2px_5px_rgba(0,0,0,0.16)] transition-transform active:scale-[0.99]">
+            <Search size={18} strokeWidth={2.2} className="mr-3 shrink-0" />
+            <span className="truncate text-black/55">搜尋作品或創作者</span>
+          </button>
+          <button onClick={() => setShowCategories(true)} aria-label="開啟作品分類" aria-expanded={showCategories} className="grid h-11 w-11 shrink-0 place-items-center rounded-xl text-white/75 transition-colors hover:bg-white/8 active:scale-[0.98]">
+            <Menu size={21} strokeWidth={1.8} />
+          </button>
+        </div>
+      </header>
 
       {/* Tabs */}
-      <div className="px-5 mb-4 flex gap-2">
-        <button
-          onClick={() => setTab("discover")}
-          className={`flex-1 py-2.5 rounded-full text-sm font-medium transition-colors ${
-            tab === "discover" ? "bg-white text-black" : "bg-white/8 text-gray-400 hover:text-white"
-          }`}
-        >
-          作品與創作者
-        </button>
-        <button
-          onClick={() => setTab("commissions")}
-          className={`flex-1 py-2.5 rounded-full text-sm font-medium transition-colors ${
-            tab === "commissions" ? "bg-white text-black" : "bg-white/8 text-gray-400 hover:text-white"
-          }`}
-        >
-          未指定的委託
-        </button>
-      </div>
+      {selectedCategory === "全部" && (
+        <div className="mb-4 grid grid-cols-2 gap-1 px-3 sm:px-5">
+          <button
+            onClick={() => setTab("discover")}
+            className={`rounded-xl py-2.5 text-sm font-medium transition-colors active:scale-[0.99] ${
+              tab === "discover" ? "bg-[#f2f2ee] text-black" : "bg-white/5 text-white/40 hover:text-white"
+            }`}
+          >
+            作品與創作者
+          </button>
+          <button
+            onClick={() => setTab("commissions")}
+            className={`rounded-xl py-2.5 text-sm font-medium transition-colors active:scale-[0.99] ${
+              tab === "commissions" ? "bg-[#f2f2ee] text-black" : "bg-white/5 text-white/40 hover:text-white"
+            }`}
+          >
+            未指定的委託
+          </button>
+        </div>
+      )}
 
       {tab === "discover" ? (
         <>
-          {/* Bento Grid */}
+          <div className="mb-3 px-4 sm:px-6">
+            <p className="text-xs text-white/45">{selectedCategory}</p>
+          </div>
+
+          {/* Dense two-column masonry on mobile, expanding on larger screens. */}
           {loadingArtworks ? (
             <BentoSkeleton />
-          ) : artworks.length === 0 ? (
-            <BentoEmpty />
+          ) : visibleArtworks.length === 0 ? (
+            <BentoEmpty message={`目前沒有「${selectedCategory}」作品`} />
           ) : (
-            <div className="px-3 mb-4">
-              <div className="flex gap-2 mb-2">
-                <div className="flex flex-col gap-2 flex-[3]">
-                  <BentoCard artwork={slot(0)} heightClass="h-44"        isLiked={likes.has(slot(0)?.id ?? -1)} onToggleLike={handleToggleLike} />
-                  <BentoCard artwork={slot(2)} heightClass="h-36"        isLiked={likes.has(slot(2)?.id ?? -1)} onToggleLike={handleToggleLike} />
-                </div>
-                <div className="flex-[2]">
-                  <BentoCard artwork={slot(1)} heightClass="h-[21.5rem]" isLiked={likes.has(slot(1)?.id ?? -1)} onToggleLike={handleToggleLike} />
-                </div>
-              </div>
-              <div className="mb-2">
-                <BentoCard artwork={slot(3)} heightClass="h-36"          isLiked={likes.has(slot(3)?.id ?? -1)} onToggleLike={handleToggleLike} />
-              </div>
-              <div className="flex gap-2">
-                <BentoCard artwork={slot(4)} heightClass="h-44 flex-1"   isLiked={likes.has(slot(4)?.id ?? -1)} onToggleLike={handleToggleLike} />
-                <BentoCard artwork={slot(5)} heightClass="h-44 flex-1"   isLiked={likes.has(slot(5)?.id ?? -1)} onToggleLike={handleToggleLike} />
-              </div>
+            <div className="mb-8 columns-2 gap-2 px-3 sm:columns-3 sm:px-5 lg:columns-4">
+              {visibleArtworks.map((artwork, index) => (
+                <BentoCard key={artwork.id} artwork={artwork} index={index} isLiked={likes.has(artwork.id)} isSaved={saves.has(artwork.id)} onToggleLike={handleToggleLike} onToggleSave={handleToggleSave} />
+              ))}
             </div>
           )}
 
           {/* Top Creators */}
-          <div className="px-4 mb-6">
+          <div className="mb-6 px-3 sm:px-5">
             <div className="flex justify-between items-center mb-3">
-              <h2 className="text-sm font-semibold text-white tracking-wide">推薦創作者</h2>
-              <button className="text-xs text-white flex items-center gap-0.5">
+              <h2 className="text-sm font-semibold text-white">推薦創作者</h2>
+              <button onClick={() => navigate("/search")} className="flex items-center gap-0.5 text-xs text-white/50 hover:text-white">
                 全部 <ChevronRight size={12} />
               </button>
             </div>
@@ -314,7 +341,7 @@ export function HomePage() {
                   <div
                     key={creator.id}
                     onClick={() => creator.username && navigate(`/creator/${creator.username}`)}
-                    className="flex items-center justify-between p-3 bg-white/4 backdrop-blur-md border border-white/6 rounded-2xl hover:bg-white/8 transition-colors cursor-pointer"
+                    className="flex cursor-pointer items-center justify-between rounded-xl bg-white/5 p-3 transition-colors hover:bg-white/8"
                   >
                     <div className="flex items-center gap-3 min-w-0">
                       <div className="relative shrink-0">
@@ -331,15 +358,14 @@ export function HomePage() {
                       </div>
                     </div>
                     <button
-                      onClick={async (e) => {
+                      onClick={(e) => {
                         e.stopPropagation();
                         if (!user) { navigate("/login"); return; }
-                        const convId = await getOrCreateConversation(user.id, creator.userId);
-                        if (convId) navigate(`/chat/${convId}`);
+                        navigate(`/invite/${creator.id}`);
                       }}
                       className="text-[10px] px-2.5 py-1 rounded-lg bg-white/8 border border-white/10 text-gray-200 hover:bg-white/14 transition-colors shrink-0 ml-2"
                     >
-                      聊聊
+                      委託
                     </button>
                   </div>
                 ))}
@@ -390,6 +416,15 @@ export function HomePage() {
           onCreatorClick={(u) => { if (u) { navigate(`/creator/${u}`); setShowSearch(false); setSearchQuery(""); } }}
         />
       )}
+
+      {showCategories && (
+        <CategoryDrawer
+          categories={artworkCategories}
+          selected={selectedCategory}
+          onSelect={(category) => { setSelectedCategory(category); setShowCategories(false); setTab("discover"); }}
+          onClose={() => setShowCategories(false)}
+        />
+      )}
     </div>
   );
 }
@@ -399,64 +434,111 @@ export function HomePage() {
  * ───────────────────────────────────────────────────────────────────────── */
 function BentoCard({
   artwork,
-  heightClass,
+  index,
   isLiked,
+  isSaved,
   onToggleLike,
+  onToggleSave,
 }: {
-  artwork: Artwork | undefined;
-  heightClass: string;
+  artwork: Artwork;
+  index: number;
   isLiked: boolean;
+  isSaved: boolean;
   onToggleLike: (id: number, e: React.MouseEvent) => void;
+  onToggleSave: (id: number, e: React.MouseEvent) => void;
 }) {
   const navigate = useNavigate();
+  const [showMeta, setShowMeta] = useState(false);
+  const longPressTimerRef = useRef<number | null>(null);
+  const longPressTriggeredRef = useRef(false);
+  const pressStartRef = useRef({ x: 0, y: 0 });
 
-  if (!artwork) {
-    return (
-      <div className={`relative ${heightClass} rounded-[20px] overflow-hidden bg-white/5 border border-white/8 flex items-center justify-center`}>
-        <ImageOff size={20} className="text-gray-700" />
-      </div>
-    );
+  const ratios = ["aspect-[4/5]", "aspect-[3/4]", "aspect-[4/6]", "aspect-square", "aspect-[5/7]", "aspect-[4/5]"];
+
+  function clearLongPress() {
+    if (longPressTimerRef.current !== null) {
+      window.clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  }
+
+  useEffect(() => () => clearLongPress(), []);
+
+  function handlePointerDown(event: React.PointerEvent<HTMLDivElement>) {
+    if (event.pointerType === "mouse") return;
+    longPressTriggeredRef.current = false;
+    pressStartRef.current = { x: event.clientX, y: event.clientY };
+    clearLongPress();
+    longPressTimerRef.current = window.setTimeout(() => {
+      longPressTriggeredRef.current = true;
+      setShowMeta(true);
+      navigator.vibrate?.(18);
+    }, 480);
+  }
+
+  function handlePointerMove(event: React.PointerEvent<HTMLDivElement>) {
+    if (event.pointerType === "mouse" || longPressTimerRef.current === null) return;
+    const moved = Math.hypot(event.clientX - pressStartRef.current.x, event.clientY - pressStartRef.current.y);
+    if (moved > 10) clearLongPress();
   }
 
   return (
-    <div
-      className={`relative ${heightClass} rounded-[20px] overflow-hidden cursor-pointer group bg-white/5`}
-      onClick={() => navigate(`/artwork/${artwork.id}`)}
-    >
-      {artwork.cover_image_url ? (
-        <img
-          src={artwork.cover_image_url}
-          alt={artwork.title ?? ""}
-          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-        />
-      ) : (
-        <div className="w-full h-full flex items-center justify-center">
-          <ImageOff size={20} className="text-gray-700" />
-        </div>
-      )}
-
-      {/* 漸層 */}
-      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
-
-      {/* 左下：標題 pill（全部卡片都有）*/}
-      {artwork.title && (
-        <div className="absolute bottom-2.5 left-2.5">
-          <span className="text-[10px] text-gray-200 bg-black/50 backdrop-blur-sm px-2 py-0.5 rounded-full border border-white/10 max-w-[100px] truncate block">
-            {artwork.title}
-          </span>
-        </div>
-      )}
-
-      {/* 右上：愛心按鈕（全部卡片都有）*/}
-      <button
-        onClick={(e) => onToggleLike(artwork.id, e)}
-        className="absolute top-2.5 right-2.5 w-7 h-7 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center transition-transform active:scale-90"
+    <article className="mb-3 break-inside-avoid overflow-hidden rounded-xl bg-[#151515]">
+      <div
+        className={`artwork-gallery-card group relative cursor-pointer select-none overflow-hidden bg-white/5 ${ratios[index % ratios.length]}`}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={clearLongPress}
+        onPointerCancel={clearLongPress}
+        onContextMenu={(event) => event.preventDefault()}
+        onClick={(event) => {
+          if (longPressTriggeredRef.current) {
+            event.preventDefault();
+            longPressTriggeredRef.current = false;
+            return;
+          }
+          navigate(`/artwork/${artwork.id}`);
+        }}
       >
-        <Heart
-          size={13}
-          className={isLiked ? "text-red-400 fill-red-400" : "text-white"}
-        />
-      </button>
+        {artwork.cover_image_url ? (
+          <img src={artwork.cover_image_url} alt={artwork.title ?? ""} loading={index < 4 ? "eager" : "lazy"} className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.025] motion-reduce:transform-none" />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center"><ImageOff size={20} className="text-gray-700" /></div>
+        )}
+        <div className={`artwork-reveal absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/90 to-transparent ${showMeta ? "is-revealed" : ""}`} />
+        <p className={`artwork-reveal pointer-events-none absolute inset-x-3 bottom-3 truncate text-xs font-medium text-white ${showMeta ? "is-revealed" : ""}`}>
+          {artwork.title ?? "未命名作品"}
+        </p>
+        <div className={`artwork-reveal artwork-actions absolute right-2 top-2 flex gap-1.5 ${showMeta ? "is-revealed" : ""}`}>
+          <button onPointerDown={(event) => event.stopPropagation()} onClick={(e) => onToggleLike(artwork.id, e)} aria-label={isLiked ? "取消喜愛" : "加入喜愛"} className="flex h-8 w-8 items-center justify-center rounded-full bg-black/65 text-white backdrop-blur-md transition-transform active:scale-90">
+            <Heart size={14} strokeWidth={1.8} className={isLiked ? "fill-white text-white" : "text-white"} />
+          </button>
+          <button onPointerDown={(event) => event.stopPropagation()} onClick={(e) => onToggleSave(artwork.id, e)} aria-label={isSaved ? "取消收藏" : "收藏作品"} className="flex h-8 w-8 items-center justify-center rounded-full bg-black/65 text-white backdrop-blur-md transition-transform active:scale-90">
+            <Bookmark size={14} strokeWidth={1.8} className={isSaved ? "fill-white text-white" : "text-white"} />
+          </button>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function CategoryDrawer({ categories, selected, onSelect, onClose }: { categories: string[]; selected: string; onSelect: (category: string) => void; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-[80]" role="dialog" aria-modal="true" aria-label="作品分類">
+      <button type="button" aria-label="關閉作品分類" onClick={onClose} className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
+      <aside className="relative ml-auto flex min-h-[100dvh] w-[82%] max-w-sm flex-col bg-[#0d0d0d] px-6 pb-10 pt-7 shadow-[-24px_0_60px_rgba(0,0,0,0.45)]">
+        <div className="flex items-center justify-between">
+          <div><p className="text-[10px] tracking-[0.2em] text-white/30">CATEGORY</p><h2 className="mt-1 text-lg font-semibold text-white">作品分類</h2></div>
+          <button onClick={onClose} aria-label="關閉" className="grid h-9 w-9 place-items-center rounded-full border border-white/15 text-white/65 hover:bg-white/8 hover:text-white"><X size={17} /></button>
+        </div>
+        <div className="mt-8 grid gap-1">
+          {categories.map((category) => (
+            <button key={category} onClick={() => onSelect(category)} className={`rounded-xl px-4 py-3 text-left text-sm transition-colors active:scale-[0.99] ${selected === category ? "bg-[#f2f2ee] font-semibold text-black" : "text-white/60 hover:bg-white/6 hover:text-white"}`}>
+              {category}
+            </button>
+          ))}
+        </div>
+      </aside>
     </div>
   );
 }
@@ -484,26 +566,26 @@ function SearchOverlay({
   onCreatorClick: (username: string | null) => void;
 }) {
   return (
-    <div className="absolute inset-0 z-50 bg-[#141414] flex flex-col">
+    <div className="fixed inset-0 z-[80] flex flex-col bg-[#0d0d0d]">
       {/* Search bar */}
-      <div className="flex items-center gap-3 px-4 pt-14 pb-3 border-b border-white/6">
-        <div className="flex-1 flex items-center bg-white/8 border border-white/12 rounded-full px-4 h-11">
-          <Search size={15} className="text-gray-500 mr-2 shrink-0" />
+      <div className="flex items-center gap-3 px-4 pb-4 pt-8 sm:px-6">
+        <div className="flex h-11 flex-1 items-center rounded-full bg-[#f2f2ee] px-4 text-black shadow-[inset_0_-2px_5px_rgba(0,0,0,0.14)]">
+          <Search size={16} className="mr-2 shrink-0 text-black" />
           <input
             autoFocus
             type="text"
             value={query}
             onChange={(e) => onQueryChange(e.target.value)}
             placeholder="搜尋作品或創作者..."
-            className="flex-1 bg-transparent text-sm text-white outline-none placeholder:text-gray-600"
+            className="flex-1 bg-transparent text-sm text-black outline-none placeholder:text-black/40"
           />
           {query && (
             <button onClick={() => onQueryChange("")}>
-              <X size={14} className="text-gray-500" />
+              <X size={14} className="text-black/45" />
             </button>
           )}
         </div>
-        <button onClick={onClose} className="text-gray-400 text-sm shrink-0">
+        <button onClick={onClose} className="shrink-0 text-sm text-white/55 hover:text-white">
           取消
         </button>
       </div>
@@ -549,12 +631,12 @@ function SearchOverlay({
         {!searching && artworks.length > 0 && (
           <div>
             <p className="text-gray-500 text-[10px] tracking-widest mb-2">作品</p>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 gap-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
               {artworks.map((a) => (
                 <button
                   key={a.id}
                   onClick={() => onArtworkClick(a.id)}
-                  className="relative aspect-square rounded-xl overflow-hidden bg-white/5"
+                  className="relative aspect-square overflow-hidden rounded-xl bg-white/5 transition-transform active:scale-[0.98]"
                 >
                   {a.cover_image_url ? (
                     <img src={a.cover_image_url} alt={a.title ?? ""} className="w-full h-full object-cover" />
@@ -563,10 +645,6 @@ function SearchOverlay({
                       <ImageOff size={16} className="text-gray-700" />
                     </div>
                   )}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-                  <p className="absolute bottom-2 left-2 right-2 text-white text-[10px] font-medium truncate text-left">
-                    {a.title}
-                  </p>
                 </button>
               ))}
             </div>
@@ -596,21 +674,13 @@ function AvatarImg({ url, name, size = 10 }: { url: string | null; name: string 
 
 function BentoSkeleton() {
   return (
-    <div className="px-3 mb-4 animate-pulse">
-      <div className="flex gap-2 mb-2">
-        <div className="flex flex-col gap-2 flex-[3]">
-          <div className="h-44 rounded-[20px] bg-white/5" />
-          <div className="h-36 rounded-[20px] bg-white/5" />
+    <div className="mb-8 columns-2 gap-2 px-3 sm:columns-3 sm:px-5 lg:columns-4">
+      {[5, 7, 6, 5, 8, 6, 7, 5].map((height, index) => (
+        <div key={index} className="mb-3 break-inside-avoid animate-pulse overflow-hidden rounded-xl bg-[#151515]">
+          <div className="bg-white/6" style={{ height: `${height * 32}px` }} />
+          <div className="h-9 bg-white/[0.035]" />
         </div>
-        <div className="flex-[2]">
-          <div className="h-[21.5rem] rounded-[20px] bg-white/5" />
-        </div>
-      </div>
-      <div className="h-36 rounded-[20px] bg-white/5 mb-2" />
-      <div className="flex gap-2">
-        <div className="flex-1 h-44 rounded-[20px] bg-white/5" />
-        <div className="flex-1 h-44 rounded-[20px] bg-white/5" />
-      </div>
+      ))}
     </div>
   );
 }

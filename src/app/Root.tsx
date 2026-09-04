@@ -50,6 +50,27 @@ function Spinner() {
   );
 }
 
+/**
+ * Per-route content width.
+ *
+ * Pages were each setting their own max-width (or none at all), so desktop
+ * layouts jumped between screens and unconstrained pages stretched text across
+ * the full monitor. Deciding it here means a new page is correct by default.
+ */
+function widthFor(pathname: string): string {
+  // Reading columns: long prose and single-column forms.
+  const narrow = ["/profile/edit", "/profile/commission", "/invite", "/notifications", "/orders"];
+  // Conversation views read best in a fixed column.
+  const chat = ["/chat"];
+
+  if (chat.some((path) => pathname.startsWith(path))) return "max-w-[820px]";
+  if (narrow.some((path) => pathname.startsWith(path))) return "max-w-[760px]";
+  if (pathname.startsWith("/artwork/")) return "max-w-[1100px]";
+  if (pathname.startsWith("/creator/") || pathname === "/profile") return "max-w-[1100px]";
+  // Galleries and search results use the full grid.
+  return "max-w-[1440px]";
+}
+
 function Frame({
   children,
   isAuthPage,
@@ -59,7 +80,9 @@ function Frame({
   isAuthPage: boolean;
   isOnboarding: boolean;
 }) {
+  const { pathname } = useLocation();
   const chromeless = isAuthPage || isOnboarding;
+  const focusedPage = pathname === "/profile/edit";
 
   // Account screens stay a single narrow column at every width. A login form
   // stretched across a 27 inch monitor looks broken.
@@ -75,14 +98,16 @@ function Frame({
 
   return (
     <div className="min-h-[100dvh] bg-ink text-white font-sans selection:bg-white/25">
-      <TopNav />
+      {!focusedPage && <TopNav />}
 
       {/* pb leaves room for the floating mobile nav; lg drops it. */}
-      <main className="relative z-10 mx-auto w-full max-w-[1440px] px-4 pb-32 sm:px-6 lg:px-10 lg:pb-16">
+      <main
+        className={`relative mx-auto w-full px-4 pb-32 sm:px-6 lg:px-10 lg:pb-16 ${widthFor(pathname)}`}
+      >
         {children}
       </main>
 
-      <BottomNav />
+      {!focusedPage && <BottomNav />}
     </div>
   );
 }

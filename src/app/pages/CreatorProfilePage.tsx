@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router";
-import { ArrowLeft, Heart, ImageOff, MoreHorizontal, Send } from "lucide-react";
+import { ArrowLeft, ImageOff, Info, Send, UserCheck, UserPlus } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import { useAuth } from "../../contexts/AuthContext";
 import { getOrCreateConversation } from "../../lib/chat";
@@ -12,6 +12,7 @@ interface CreatorProfile {
   name: string | null;
   bio: string | null;
   avatar_url: string | null;
+  expertise: string[];
   artistId: number;
   joinedYear: string;
 }
@@ -42,7 +43,7 @@ export function CreatorProfilePage() {
       // 1. username 找 user
       const { data: user_data } = await supabase
         .from("users")
-        .select("id, username, name, bio, avatar_url, created_at")
+        .select("id, username, name, bio, avatar_url, expertise, created_at")
         .eq("username", usernameParam)
         .is("deleted_at", null)
         .single();
@@ -72,6 +73,7 @@ export function CreatorProfilePage() {
         name: user_data.name,
         bio: user_data.bio,
         avatar_url: user_data.avatar_url,
+        expertise: user_data.expertise ?? [],
         artistId: ap.id,
         joinedYear: new Date(user_data.created_at).getFullYear().toString(),
       });
@@ -88,22 +90,21 @@ export function CreatorProfilePage() {
 
       setArtworks(works ?? []);
 
-      // 追蹤狀態（只有登入且不是自己才查）
+      // 粉絲數對所有訪客顯示；登入後再查自己的追蹤狀態
+      const { count } = await supabase
+        .from("follows")
+        .select("*", { count: "exact", head: true })
+        .eq("following_id", user_data.id);
+      setFollowerCount(count ?? 0);
+
       if (user && user.id !== user_data.id) {
-        const [followRes, countRes] = await Promise.all([
-          supabase
-            .from("follows")
-            .select("follower_id")
-            .eq("follower_id", user.id)
-            .eq("following_id", user_data.id)
-            .maybeSingle(),
-          supabase
-            .from("follows")
-            .select("*", { count: "exact", head: true })
-            .eq("following_id", user_data.id),
-        ]);
+        const followRes = await supabase
+          .from("follows")
+          .select("follower_id")
+          .eq("follower_id", user.id)
+          .eq("following_id", user_data.id)
+          .maybeSingle();
         setIsFollowing(!!followRes.data);
-        setFollowerCount(countRes.count ?? 0);
       }
 
       setLoading(false);
@@ -126,7 +127,7 @@ export function CreatorProfilePage() {
 
   if (loading) {
     return (
-      <div className="h-full bg-[#141414] overflow-y-auto pb-28 [&::-webkit-scrollbar]:hidden animate-pulse">
+      <div className="animate-pulse rounded-2xl bg-[#141414] pb-10">
         <div className="px-6 pt-12 pb-6">
           <div className="w-10 h-10 rounded-full bg-white/8 mb-6" />
           <div className="flex items-center gap-4 mb-6">
@@ -145,7 +146,7 @@ export function CreatorProfilePage() {
 
   if (notFound || !profile) {
     return (
-      <div className="h-full bg-[#141414] flex flex-col items-center justify-center gap-4">
+      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 rounded-2xl bg-[#141414]">
         <p className="text-gray-400 text-sm">找不到這位創作者</p>
         <button
           onClick={() => navigate(-1)}
@@ -160,15 +161,27 @@ export function CreatorProfilePage() {
   const isOwnProfile = user?.id === profile.userId;
 
   return (
-    <div className="h-full overflow-y-auto pb-28 [&::-webkit-scrollbar]:hidden bg-[#141414]">
+    <div className="rounded-2xl bg-[#141414] pb-10">
       {/* Header */}
       <div className="px-6 pt-12 pb-6">
-        <button
-          onClick={() => navigate(-1)}
-          className="w-10 h-10 rounded-full bg-white/10 backdrop-blur-xl border border-white/20 flex items-center justify-center hover:bg-white/15 transition-all mb-6"
-        >
-          <ArrowLeft size={20} className="text-white" />
-        </button>
+        <div className="mb-6 flex items-center justify-between">
+          <button
+            onClick={() => navigate(-1)}
+            aria-label="返回"
+            className="flex h-10 w-10 items-center justify-center rounded-full border border-white/20 bg-white/10 backdrop-blur-xl transition-all hover:bg-white/15"
+          >
+            <ArrowLeft size={20} className="text-white" />
+          </button>
+          {!isOwnProfile && (
+            <button
+              onClick={() => { if (!user) { navigate('/login'); return; } setShowSafety(true); }}
+              aria-label="帳號資訊與安全選項"
+              className="grid h-10 w-10 place-items-center rounded-full border border-white/20 bg-white/10 text-white/65 backdrop-blur-xl transition-all hover:bg-white/15 hover:text-white"
+            >
+              <Info size={20} />
+            </button>
+          )}
+        </div>
 
         {/* Avatar + 名字 */}
         <div className="flex items-center gap-4 mb-5">
@@ -189,6 +202,19 @@ export function CreatorProfilePage() {
           <p className="text-gray-300 text-sm leading-relaxed mb-5">{profile.bio}</p>
         )}
 
+        {profile.expertise.length > 0 && (
+          <div className="mb-5 flex flex-wrap gap-2">
+            {profile.expertise.map((tag) => (
+              <span key={tag} className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-xs text-white/45">#{tag}</span>
+            ))}
+          </div>
+        )}
+
+        <div className="mb-5 flex items-baseline gap-1.5">
+          <strong className="text-sm font-semibold text-white">{followerCount}</strong>
+          <span className="text-xs text-white/40">粉絲</span>
+        </div>
+
         {/* Actions */}
         {isOwnProfile ? (
           <button
@@ -198,7 +224,7 @@ export function CreatorProfilePage() {
             編輯個人頁
           </button>
         ) : (
-          <div className="grid grid-cols-[1fr_1fr_auto_auto] gap-3">
+          <div className="grid grid-cols-[1fr_1fr_auto] gap-3">
             <button
               onClick={() => {
                 if (!user) { navigate("/login"); return; }
@@ -220,26 +246,15 @@ export function CreatorProfilePage() {
             </button>
             <button
               onClick={() => { if (!user) { navigate("/login"); return; } handleToggleFollow(); }}
-              className={`w-12 h-12 rounded-xl backdrop-blur-xl flex flex-col items-center justify-center border transition-all ${
+              aria-label={isFollowing ? "取消追蹤" : "追蹤這位創作者"}
+              className={`flex h-12 min-w-24 items-center justify-center gap-2 rounded-xl border px-4 text-sm font-semibold backdrop-blur-xl transition-all ${
                 isFollowing
-                  ? "bg-red-500/20 border-red-400/40 hover:bg-red-500/30"
-                  : "bg-white/10 border-white/20 hover:bg-white/15"
+                  ? "border-white/25 bg-white/15 text-white hover:bg-white/20"
+                  : "border-white bg-white text-black hover:bg-white/90"
               }`}
             >
-              <Heart
-                size={17}
-                className={isFollowing ? "text-red-400 fill-red-400" : "text-white"}
-              />
-              {followerCount > 0 && (
-                <span className="text-[8px] text-gray-400 mt-0.5 leading-none">{followerCount}</span>
-              )}
-            </button>
-            <button
-              onClick={() => { if (!user) { navigate('/login'); return; } setShowSafety(true); }}
-              aria-label="更多安全選項"
-              className="grid h-12 w-12 place-items-center rounded-xl border border-white/20 bg-white/10 text-white/60 hover:text-white"
-            >
-              <MoreHorizontal size={18} />
+              {isFollowing ? <UserCheck size={17} /> : <UserPlus size={17} />}
+              {isFollowing ? "追蹤中" : "追蹤"}
             </button>
           </div>
         )}
@@ -262,7 +277,7 @@ export function CreatorProfilePage() {
             <p className="text-gray-500 text-sm">尚無公開作品</p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
             {artworks.map((artwork) => (
               <button
                 key={artwork.id}
@@ -313,7 +328,34 @@ function SafetyDialog({ creatorName, targetId, reporterId, onClose, onBlocked }:
   const [error, setError] = useState('');
   async function report() { setBusy(true); setError(''); try { await submitReport({ reporterId, targetType: 'creator', targetId, reason, detail: detail.trim() }); onClose(); } catch (e) { setError(e instanceof Error ? e.message : '檢舉送出失敗。'); setBusy(false); } }
   async function block() { setBusy(true); setError(''); try { await toggleBlock(reporterId, targetId); onClose(); onBlocked(); } catch (e) { setError(e instanceof Error ? e.message : '封鎖失敗。'); setBusy(false); } }
-  return <div className="fixed inset-0 z-[70] grid place-items-center bg-black/75 p-5" role="dialog" aria-modal="true" aria-labelledby="safety-title"><div className="w-full max-w-md border border-white/15 bg-[#171717] p-6 shadow-2xl"><h2 id="safety-title" className="text-xl font-semibold">{mode === 'menu' ? '安全選項' : `檢舉 ${creatorName}`}</h2>{mode === 'menu' ? <div className="mt-5 grid gap-2"><button onClick={() => setMode('report')} className="border border-white/12 px-4 py-3 text-left text-sm text-white/70 hover:border-white/30">檢舉帳號或內容</button><button disabled={busy} onClick={() => void block()} className="border border-red-400/20 px-4 py-3 text-left text-sm text-red-200 hover:border-red-400/40">封鎖 {creatorName}</button><p className="mt-2 text-xs leading-5 text-white/35">封鎖後，對方會從你的創作者搜尋結果移除。</p></div> : <div className="mt-5 grid gap-4"><label className="text-sm text-white/60">原因<select value={reason} onChange={(e) => setReason(e.target.value as ReportReason)} className="input mt-2"><option value="impersonation">冒用身分</option><option value="stolen_work">盜用作品</option><option value="harassment">騷擾</option><option value="spam">垃圾訊息</option><option value="inappropriate">不當內容</option><option value="other">其他</option></select></label><label className="text-sm text-white/60">補充說明<textarea value={detail} onChange={(e) => setDetail(e.target.value)} maxLength={1000} rows={5} className="input mt-2 resize-none" /></label><button disabled={busy} onClick={() => void report()} className="bg-white px-4 py-3 text-sm font-semibold text-black disabled:opacity-40">送出檢舉</button></div>}{error && <p className="mt-4 text-sm text-red-300">{error}</p>}<button onClick={onClose} className="mt-5 text-sm text-white/45">取消</button></div></div>;
+  return (
+    <div className="fixed inset-0 z-[70] grid place-items-center bg-black/75 p-5 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="safety-title">
+      <div className="w-full max-w-md rounded-3xl border border-white/15 bg-[#171717] p-6 shadow-2xl">
+        <h2 id="safety-title" className="text-xl font-semibold">{mode === 'menu' ? '安全選項' : `檢舉 ${creatorName}`}</h2>
+        {mode === 'menu' ? (
+          <div className="mt-5 grid gap-2">
+            <button onClick={() => setMode('report')} className="rounded-xl border border-white/12 px-4 py-3 text-left text-sm text-white/70 transition-colors hover:border-white/30 hover:bg-white/5">檢舉帳號或內容</button>
+            <button disabled={busy} onClick={() => void block()} className="rounded-xl border border-red-400/20 px-4 py-3 text-left text-sm text-red-200 transition-colors hover:border-red-400/40 hover:bg-red-500/8">封鎖 {creatorName}</button>
+            <p className="mt-2 text-xs leading-5 text-white/35">封鎖後，對方會從你的創作者搜尋結果移除。</p>
+          </div>
+        ) : (
+          <div className="mt-5 grid gap-4">
+            <label className="text-sm text-white/60">原因
+              <select value={reason} onChange={(e) => setReason(e.target.value as ReportReason)} className="input mt-2 rounded-xl">
+                <option value="impersonation">冒用身分</option><option value="stolen_work">盜用作品</option><option value="harassment">騷擾</option><option value="spam">垃圾訊息</option><option value="inappropriate">不當內容</option><option value="other">其他</option>
+              </select>
+            </label>
+            <label className="text-sm text-white/60">補充說明
+              <textarea value={detail} onChange={(e) => setDetail(e.target.value)} maxLength={1000} rows={5} className="input mt-2 resize-none rounded-xl" />
+            </label>
+            <button disabled={busy} onClick={() => void report()} className="rounded-xl bg-white px-4 py-3 text-sm font-semibold text-black transition-opacity hover:opacity-90 disabled:opacity-40">送出檢舉</button>
+          </div>
+        )}
+        {error && <p className="mt-4 rounded-xl bg-red-500/10 px-3 py-2 text-sm text-red-300">{error}</p>}
+        <button onClick={onClose} className="mt-5 rounded-full px-3 py-1.5 text-sm text-white/45 transition-colors hover:bg-white/8 hover:text-white/70">取消</button>
+      </div>
+    </div>
+  );
 }
 
 function ProfileAvatar({ url, name }: { url: string | null; name: string | null }) {

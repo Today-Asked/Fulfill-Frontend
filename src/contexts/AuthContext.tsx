@@ -18,12 +18,23 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+const previewUser = {
+  id: "preview-user",
+  aud: "authenticated",
+  role: "authenticated",
+  email: "preview@fulfill.local",
+  app_metadata: {},
+  user_metadata: { username: "Preview Creator", full_name: "Preview Creator" },
+  created_at: new Date(0).toISOString(),
+} as User;
+
 // ─── Provider ────────────────────────────────────────────────────────────────
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [profileChecked, setProfileChecked] = useState(false);
+  const isPreview = import.meta.env.VITE_PREVIEW_AUTH === "true" || import.meta.env.VITE_MOCK === "true" || import.meta.env.MODE === "mock";
+  const [user, setUser] = useState<User | null>(isPreview ? previewUser : null);
+  const [loading, setLoading] = useState(!isPreview);
+  const [profileChecked, setProfileChecked] = useState(isPreview);
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
   const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
 
@@ -52,6 +63,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [user, checkProfile]);
 
   useEffect(() => {
+    if (isPreview) return;
+
     // 頁面載入時恢復 session
     supabase.auth.getSession().then(({ data }) => {
       const u = data.session?.user ?? null;
@@ -82,10 +95,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
 
     return () => listener.subscription.unsubscribe();
-  }, [checkProfile]);
+  }, [checkProfile, isPreview]);
 
   async function signOut() {
     await supabase.auth.signOut();
+    if (isPreview) {
+      setUser(null);
+      setProfileChecked(false);
+      setNeedsOnboarding(false);
+    }
   }
 
   return (

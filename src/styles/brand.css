@@ -66,3 +66,34 @@ body {
   outline: 2px solid #ffffff;
   outline-offset: 2px;
 }
+
+/* Artwork metadata stays quiet until deliberate discovery. Fine-pointer
+   devices reveal on hover; touch devices add .is-revealed after long press. */
+.artwork-reveal {
+  opacity: 0;
+  transition: opacity 180ms ease;
+}
+
+.artwork-actions {
+  pointer-events: none;
+}
+
+.artwork-reveal.is-revealed,
+.artwork-gallery-card:focus-within .artwork-reveal {
+  opacity: 1;
+}
+
+.artwork-actions.is-revealed,
+.artwork-gallery-card:focus-within .artwork-actions {
+  pointer-events: auto;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .artwork-gallery-card:hover .artwork-reveal {
+    opacity: 1;
+  }
+
+  .artwork-gallery-card:hover .artwork-actions {
+    pointer-events: auto;
+  }
+}

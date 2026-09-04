@@ -98,9 +98,9 @@ export function ChatListPage() {
   );
 
   return (
-    <div className="h-full flex flex-col bg-[#141414]">
+    <div className="flex min-h-[70vh] flex-col rounded-2xl bg-[#141414] lg:min-h-[76vh]">
       {/* Header */}
-      <div className="px-5 pt-14 pb-4">
+      <div className="px-5 pb-4 pt-6">
         <div className="flex items-center gap-4">
           <h1 className="text-white font-semibold tracking-widest text-sm">CHAT</h1>
           <div className="flex-1 flex items-center bg-white/8 border border-white/10 rounded-full px-3 h-8">
