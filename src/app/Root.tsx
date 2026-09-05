@@ -24,7 +24,7 @@ export function Root() {
   // requires an account.
   const isGuestAccessible =
     location.pathname === "/" ||
-    location.pathname === "/search" ||
+    location.pathname.startsWith("/search") ||
     location.pathname.startsWith("/artwork/") ||
     location.pathname.startsWith("/creator/");
 

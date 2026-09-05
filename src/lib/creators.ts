@@ -100,6 +100,14 @@ export async function searchCreators(query: CreatorQuery = {}): Promise<CreatorS
   return rows;
 }
 
+/** Fetches specific creators by artist id, regardless of is_published — for callers with their own visibility rules. */
+export async function listCreatorsByIds(artistIds: number[]): Promise<CreatorSummary[]> {
+  if (!artistIds.length) return [];
+  const { data, error } = await supabase.from("artist_profiles").select(SELECT).in("id", artistIds);
+  if (error) throw error;
+  return (data ?? []).map(toCreator);
+}
+
 export async function getCreator(artistId: number): Promise<CreatorSummary | null> {
   const { data, error } = await supabase.from("artist_profiles").select(SELECT).eq("id", artistId).maybeSingle();
   if (error) throw error;

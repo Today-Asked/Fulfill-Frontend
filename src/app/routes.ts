@@ -16,6 +16,7 @@ import { ArtworkDetailPage } from "./pages/ArtworkDetailPage";
 import { NotificationsPage } from "./pages/NotificationsPage";
 import { InvitePage } from "./pages/InvitePage";
 import { SearchPage } from "./pages/SearchPage";
+import { AISearchPage } from "./pages/AISearchPage";
 import { CommissionProfilePage } from "./pages/CommissionProfilePage";
 import { EditProfilePage } from "./pages/EditProfilePage";
 
@@ -30,6 +31,7 @@ export const router = createBrowserRouter([
       { path: "invite", Component: InvitePage },
       { path: "invite/:artistId", Component: InvitePage },
       { path: "search", Component: SearchPage },
+      { path: "search/ai", Component: AISearchPage },
       { path: "chat", Component: ChatListPage },
       { path: "chat/:id", Component: ChatRoomPage },
       { path: "create", Component: CreatePage },
