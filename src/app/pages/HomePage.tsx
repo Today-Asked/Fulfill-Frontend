@@ -326,13 +326,13 @@ export function HomePage() {
             </button>
           </div>
 
-          {/* Dense two-column masonry on mobile/tablet; a real 5-6 col grid from lg up. */}
+          {/* Masonry columns throughout — 2 on mobile, up to 6 on wide desktop — so cards keep their own height instead of being stretched to match a row. */}
           {loadingArtworks ? (
             <BentoSkeleton />
           ) : visibleArtworks.length === 0 ? (
             <BentoEmpty message={`目前沒有「${selectedCategory}」作品`} />
           ) : (
-            <div className="mb-8 columns-2 gap-2 px-3 sm:columns-3 sm:px-5 lg:grid lg:columns-none lg:grid-cols-5 lg:gap-3 lg:px-8 xl:grid-cols-6">
+            <div className="mb-8 columns-2 gap-2 px-3 sm:columns-3 sm:px-5 lg:columns-4 lg:gap-3 lg:px-8 xl:columns-6">
               {visibleArtworks.map((artwork, index) => (
                 <BentoCard key={artwork.id} artwork={artwork} index={index} isLiked={likes.has(artwork.id)} isSaved={saves.has(artwork.id)} onToggleLike={handleToggleLike} onToggleSave={handleToggleSave} />
               ))}
@@ -512,7 +512,7 @@ function BentoCard({
   }
 
   return (
-    <article className="mb-3 break-inside-avoid overflow-hidden rounded-xl bg-[#151515] lg:mb-0">
+    <article className="mb-3 break-inside-avoid overflow-hidden rounded-xl bg-[#151515]">
       <div
         className={`artwork-gallery-card group relative cursor-pointer select-none overflow-hidden bg-white/5 ${ratios[index % ratios.length]}`}
         onPointerDown={handlePointerDown}
@@ -703,9 +703,9 @@ function AvatarImg({ url, name, size = 10 }: { url: string | null; name: string 
 
 function BentoSkeleton() {
   return (
-    <div className="mb-8 columns-2 gap-2 px-3 sm:columns-3 sm:px-5 lg:grid lg:columns-none lg:grid-cols-5 lg:gap-3 lg:px-8 xl:grid-cols-6">
+    <div className="mb-8 columns-2 gap-2 px-3 sm:columns-3 sm:px-5 lg:columns-4 lg:gap-3 lg:px-8 xl:columns-6">
       {[5, 7, 6, 5, 8, 6, 7, 5].map((height, index) => (
-        <div key={index} className="mb-3 break-inside-avoid animate-pulse overflow-hidden rounded-xl bg-[#151515] lg:mb-0">
+        <div key={index} className="mb-3 break-inside-avoid animate-pulse overflow-hidden rounded-xl bg-[#151515]">
           <div className="bg-white/6" style={{ height: `${height * 32}px` }} />
           <div className="h-9 bg-white/[0.035]" />
         </div>
