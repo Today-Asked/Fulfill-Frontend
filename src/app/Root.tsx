@@ -1,7 +1,8 @@
 import React from "react";
 import { Outlet, useLocation, Navigate } from "react-router";
 import { BottomNav } from "./components/BottomNav";
-import { TopNav } from "./components/TopNav";
+import { Sidebar } from "./components/Sidebar";
+import { TopSearchBar } from "./components/TopSearchBar";
 import { useAuth } from "../contexts/AuthContext";
 
 /**
@@ -13,10 +14,19 @@ export function Root() {
   const location = useLocation();
   const { user, loading, profileChecked, needsOnboarding, isPasswordRecovery } = useAuth();
 
-  const isAuthPage    = ["/login", "/register", "/forgot-password", "/welcome"].includes(location.pathname);
-  const isHome        = location.pathname === "/";
+  const isAuthPage    = ["/login", "/register", "/forgot-password"].includes(location.pathname);
   const isOnboarding  = location.pathname === "/onboarding";
   const isResetPassword = location.pathname === "/reset-password";
+
+  // Guests can browse Home, an artwork's detail page, a creator's public
+  // profile, and search — the same things a logged-out visitor could always
+  // window-shop. Everything else (chat, orders, create, profile, …) still
+  // requires an account.
+  const isGuestAccessible =
+    location.pathname === "/" ||
+    location.pathname.startsWith("/search") ||
+    location.pathname.startsWith("/artwork/") ||
+    location.pathname.startsWith("/creator/");
 
   if (loading) return <Spinner />;
 
@@ -24,9 +34,7 @@ export function Root() {
 
   if (isResetPassword) return <Frame isAuthPage={false} isOnboarding={false}><Outlet /></Frame>;
 
-  // Guests land on the homepage itself (with a stripped-down nav), not a
-  // separate splash page — /welcome is only reachable directly by URL now.
-  if (!user && !isAuthPage && !isHome) return <Navigate to="/welcome" replace />;
+  if (!user && !isAuthPage && !isGuestAccessible) return <Navigate to="/login" replace />;
 
   if (user && isAuthPage) return <Navigate to="/" replace />;
 
@@ -98,14 +106,19 @@ function Frame({
 
   return (
     <div className="min-h-[100dvh] bg-ink text-white font-sans selection:bg-white/25">
-      {!focusedPage && <TopNav />}
+      {!focusedPage && <Sidebar />}
 
-      {/* pb leaves room for the floating mobile nav; lg drops it. */}
-      <main
-        className={`relative mx-auto w-full px-4 pb-32 sm:px-6 lg:px-10 lg:pb-16 ${widthFor(pathname)}`}
-      >
-        {children}
-      </main>
+      {/* Offset matches Sidebar's width: icon-only at md, full at lg. */}
+      <div className={focusedPage ? "" : "md:pl-[76px] lg:pl-64"}>
+        {!focusedPage && <TopSearchBar />}
+
+        {/* pb leaves room for the floating mobile nav; md drops it, since Sidebar takes over from md up. */}
+        <main
+          className={`relative mx-auto w-full px-4 pb-32 sm:px-6 md:pb-16 lg:px-10 ${widthFor(pathname)}`}
+        >
+          {children}
+        </main>
+      </div>
 
       {!focusedPage && <BottomNav />}
     </div>

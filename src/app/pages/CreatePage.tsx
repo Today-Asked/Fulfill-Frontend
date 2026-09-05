@@ -1,10 +1,11 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router";
-import { FileText, GripVertical, ImagePlus, Images, Loader2, Plus, Type, X } from "lucide-react";
+import { FileText, GripVertical, ImagePlus, Images, Loader2, Plus, Tags, Type, X } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
 import { useUpload } from "../../lib/useUpload";
 import { getMyArtistProfileId } from "../../lib/commissions";
 import { createArtwork } from "../../lib/artworks";
+import { TagInput } from "../components/TagInput";
 
 const MAX_IMAGES = 10;
 const MAX_FILE_SIZE = 15 * 1024 * 1024;
@@ -22,6 +23,7 @@ export function CreatePage() {
   const navigate = useNavigate();
   const [title, setTitle] = useState("");
   const [desc, setDesc] = useState("");
+  const [tags, setTags] = useState<string[]>([]);
   const [images, setImages] = useState<SelectedImage[]>([]);
   const [activeImageId, setActiveImageId] = useState<string | null>(null);
   const [selectionError, setSelectionError] = useState<string | null>(null);
@@ -132,7 +134,7 @@ export function CreatePage() {
       }
       const artistId = await getMyArtistProfileId(user.id);
       if (!artistId) throw new Error("找不到你的創作者檔案，請重新整理再試一次。");
-      const artworkId = await createArtwork(artistId, { title, description: desc, coverImageUrl: mediaUrls[0], mediaUrls });
+      const artworkId = await createArtwork(artistId, { title, description: desc, coverImageUrl: mediaUrls[0], mediaUrls, tagNames: tags });
       navigate(`/artwork/${artworkId}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "發佈失敗，請稍後再試。");
@@ -214,6 +216,10 @@ export function CreatePage() {
         <div>
           <label className="mb-2 flex items-center gap-1.5 text-xs text-gray-400"><FileText size={12} />作品說明</label>
           <textarea value={desc} onChange={(event) => setDesc(event.target.value)} placeholder="說說這件作品的靈感、媒材或創作過程...（選填）" rows={4} className="w-full resize-none rounded-xl border border-white/8 bg-white/5 px-4 py-3 text-sm text-white outline-none transition-all placeholder:text-gray-600 focus:border-white/40 focus:bg-white/8" />
+        </div>
+        <div>
+          <label className="mb-2 flex items-center gap-1.5 text-xs text-gray-400"><Tags size={12} />作品標籤</label>
+          <TagInput value={tags} onChange={setTags} placeholder="輸入標籤後按空白鍵分隔（選填）" />
         </div>
         {error && <p className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-xs text-red-400">{error}</p>}
         <button type="button" onClick={handleSubmit} disabled={!canSubmit} className="w-full rounded-2xl bg-white/10 py-4 text-sm font-semibold text-white shadow-[0_0_20px_rgba(255,255,255,0.12)] transition-shadow hover:shadow-[0_0_30px_rgba(255,255,255,0.18)] disabled:cursor-not-allowed disabled:opacity-50">

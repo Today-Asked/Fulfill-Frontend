@@ -11,12 +11,12 @@ import { LoginPage } from "./pages/LoginPage";
 import { OnboardingPage } from "./pages/OnboardingPage";
 import { ForgotPasswordPage } from "./pages/ForgotPasswordPage";
 import { ResetPasswordPage } from "./pages/ResetPasswordPage";
-import { WelcomePage } from "./pages/WelcomePage";
 import { CreatorProfilePage } from "./pages/CreatorProfilePage";
 import { ArtworkDetailPage } from "./pages/ArtworkDetailPage";
 import { NotificationsPage } from "./pages/NotificationsPage";
 import { InvitePage } from "./pages/InvitePage";
 import { SearchPage } from "./pages/SearchPage";
+import { AISearchPage } from "./pages/AISearchPage";
 import { CommissionProfilePage } from "./pages/CommissionProfilePage";
 import { EditProfilePage } from "./pages/EditProfilePage";
 
@@ -31,6 +31,7 @@ export const router = createBrowserRouter([
       { path: "invite", Component: InvitePage },
       { path: "invite/:artistId", Component: InvitePage },
       { path: "search", Component: SearchPage },
+      { path: "search/ai", Component: AISearchPage },
       { path: "chat", Component: ChatListPage },
       { path: "chat/:id", Component: ChatRoomPage },
       { path: "create", Component: CreatePage },
@@ -40,7 +41,6 @@ export const router = createBrowserRouter([
       { path: "profile/edit", Component: EditProfilePage },
       { path: "profile/commission", Component: CommissionProfilePage },
       { path: "register", Component: RegisterPage },
-      { path: "welcome", Component: WelcomePage },
       { path: "login", Component: LoginPage },
       { path: "forgot-password", Component: ForgotPasswordPage },
       { path: "reset-password", Component: ResetPasswordPage },

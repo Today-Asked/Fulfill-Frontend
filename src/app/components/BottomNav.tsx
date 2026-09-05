@@ -15,8 +15,8 @@ const navItems = [
 
 /**
  * Mobile navigation. Now fixed to the viewport rather than absolutely
- * positioned inside the old phone frame, and hidden on desktop where TopNav
- * covers the same destinations.
+ * positioned inside the old phone frame, and hidden from md up where
+ * Sidebar covers the same destinations.
  */
 export function BottomNav() {
   const navigate  = useNavigate();
@@ -37,7 +37,7 @@ export function BottomNav() {
 
   if (!user) {
     return (
-      <div className="pointer-events-none fixed inset-x-0 bottom-0 z-50 px-6 pb-6 pt-2 lg:hidden">
+      <div className="pointer-events-none fixed inset-x-0 bottom-0 z-50 px-6 pb-6 pt-2 md:hidden">
         <div className="pointer-events-auto mx-auto flex max-w-[420px] items-center gap-3 rounded-full border border-white/10 bg-black/70 px-3 py-2 backdrop-blur-2xl">
           <button
             onClick={() => navigate("/login")}
@@ -57,7 +57,7 @@ export function BottomNav() {
   }
 
   return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-0 z-50 px-6 pb-6 pt-2 lg:hidden">
+    <div className="pointer-events-none fixed inset-x-0 bottom-0 z-50 px-6 pb-6 pt-2 md:hidden">
       <div className="pointer-events-auto mx-auto flex max-w-[420px] items-center justify-between rounded-full border border-white/10 bg-black/70 px-5 py-3 backdrop-blur-2xl">
         {navItems.map((item) => {
           const isActive =

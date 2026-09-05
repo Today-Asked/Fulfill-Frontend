@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router";
 import { ArrowLeft, ChevronLeft, ChevronRight, Heart, Bookmark, ImageOff } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import { useAuth } from "../../contexts/AuthContext";
+import { useLoginGate, LoginGateDialog } from "../components/LoginGate";
 
 interface ArtworkDetail {
   id: number;
@@ -45,6 +46,8 @@ export function ArtworkDetailPage() {
   const [isSaved,      setIsSaved]      = useState(false);
   const [loading,      setLoading]      = useState(true);
   const [notFound,     setNotFound]     = useState(false);
+
+  const loginGate = useLoginGate();
 
   useEffect(() => {
     if (!id) return;
@@ -146,28 +149,30 @@ export function ArtworkDetailPage() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [media.length, activeImage]);
 
-  async function handleToggleLike() {
-    if (!user) { navigate("/login"); return; }
-    if (!artwork) return;
-    if (isLiked) {
-      await supabase.from("likes").delete().eq("user_id", user.id).eq("artwork_id", artwork.id);
-      setIsLiked(false);
-    } else {
-      await supabase.from("likes").insert({ user_id: user.id, artwork_id: artwork.id });
-      setIsLiked(true);
-    }
+  function handleToggleLike() {
+    loginGate.requireAuth(user, async () => {
+      if (!artwork) return;
+      if (isLiked) {
+        await supabase.from("likes").delete().eq("user_id", user!.id).eq("artwork_id", artwork.id);
+        setIsLiked(false);
+      } else {
+        await supabase.from("likes").insert({ user_id: user!.id, artwork_id: artwork.id });
+        setIsLiked(true);
+      }
+    });
   }
 
-  async function handleToggleSave() {
-    if (!user) { navigate("/login"); return; }
-    if (!artwork) return;
-    if (isSaved) {
-      await supabase.from("saves").delete().eq("user_id", user.id).eq("artwork_id", artwork.id);
-      setIsSaved(false);
-    } else {
-      await supabase.from("saves").insert({ user_id: user.id, artwork_id: artwork.id });
-      setIsSaved(true);
-    }
+  function handleToggleSave() {
+    loginGate.requireAuth(user, async () => {
+      if (!artwork) return;
+      if (isSaved) {
+        await supabase.from("saves").delete().eq("user_id", user!.id).eq("artwork_id", artwork.id);
+        setIsSaved(false);
+      } else {
+        await supabase.from("saves").insert({ user_id: user!.id, artwork_id: artwork.id });
+        setIsSaved(true);
+      }
+    });
   }
 
   const dateStr = artwork?.created_at
@@ -356,6 +361,8 @@ export function ArtworkDetailPage() {
           </div>
         )}
       </div>
+
+      <LoginGateDialog {...loginGate} />
     </div>
   );
 }

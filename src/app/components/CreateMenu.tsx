@@ -16,7 +16,7 @@ interface CreateMenuProps {
 const GAP = 8;
 
 /**
- * Shared "+" entry point for TopNav and BottomNav. Dims the whole screen and
+ * Shared "+" entry point for Sidebar and BottomNav. Dims the whole screen and
  * offers "新增委託" (go find a creator to invite) or "新增作品" (the upload form).
  *
  * Portaled to <body>: both nav bars sit inside a `backdrop-blur` container,
