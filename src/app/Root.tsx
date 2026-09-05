@@ -1,7 +1,8 @@
 import React from "react";
 import { Outlet, useLocation, Navigate } from "react-router";
 import { BottomNav } from "./components/BottomNav";
-import { TopNav } from "./components/TopNav";
+import { Sidebar } from "./components/Sidebar";
+import { TopSearchBar } from "./components/TopSearchBar";
 import { useAuth } from "../contexts/AuthContext";
 
 /**
@@ -105,14 +106,19 @@ function Frame({
 
   return (
     <div className="min-h-[100dvh] bg-ink text-white font-sans selection:bg-white/25">
-      {!focusedPage && <TopNav />}
+      {!focusedPage && <Sidebar />}
 
-      {/* pb leaves room for the floating mobile nav; lg drops it. */}
-      <main
-        className={`relative mx-auto w-full px-4 pb-32 sm:px-6 lg:px-10 lg:pb-16 ${widthFor(pathname)}`}
-      >
-        {children}
-      </main>
+      {/* Offset matches Sidebar's width: icon-only at md, full at lg. */}
+      <div className={focusedPage ? "" : "md:pl-[76px] lg:pl-64"}>
+        {!focusedPage && <TopSearchBar />}
+
+        {/* pb leaves room for the floating mobile nav; md drops it, since Sidebar takes over from md up. */}
+        <main
+          className={`relative mx-auto w-full px-4 pb-32 sm:px-6 md:pb-16 lg:px-10 ${widthFor(pathname)}`}
+        >
+          {children}
+        </main>
+      </div>
 
       {!focusedPage && <BottomNav />}
     </div>

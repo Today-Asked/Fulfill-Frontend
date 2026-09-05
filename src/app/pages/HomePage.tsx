@@ -265,13 +265,24 @@ export function HomePage() {
 
   return (
     <div className="min-h-[100dvh] bg-[#090909] pb-10">
-      {/* Compact identity bar inspired by the supplied mobile reference. */}
-      <header className="px-3 pb-3 pt-7 sm:px-5">
+      {/* Mobile-only identity bar: Sidebar + TopSearchBar cover this on md+. */}
+      <header className="px-3 pb-3 pt-7 sm:px-5 md:hidden">
         <div className="flex items-center justify-between px-1">
           <img src="/logo-mark.svg" alt="Fulfill" className="h-9 w-auto" />
-          <button onClick={() => navigate("/notifications")} aria-label="查看通知" className="-mr-1 grid h-10 w-10 place-items-center rounded-xl text-white/55 transition-colors hover:bg-white/8 hover:text-white active:scale-[0.98]">
-            <Bell size={19} strokeWidth={1.8} />
-          </button>
+          {user ? (
+            <button onClick={() => navigate("/notifications")} aria-label="查看通知" className="-mr-1 grid h-10 w-10 place-items-center rounded-xl text-white/55 transition-colors hover:bg-white/8 hover:text-white active:scale-[0.98]">
+              <Bell size={19} strokeWidth={1.8} />
+            </button>
+          ) : (
+            <div className="flex items-center gap-2">
+              <button onClick={() => navigate("/login")} className="rounded-full px-3 py-1.5 text-sm font-medium text-white/70 transition-colors hover:text-white active:scale-[0.98]">
+                登入
+              </button>
+              <button onClick={() => navigate("/register")} className="rounded-full bg-[#f2f2ee] px-3.5 py-1.5 text-sm font-semibold text-black transition-colors hover:bg-white active:scale-[0.98]">
+                註冊
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="mt-4 flex items-center gap-2">
@@ -302,7 +313,7 @@ export function HomePage() {
               tab === "commissions" ? "bg-[#f2f2ee] text-black" : "bg-white/5 text-white/40 hover:text-white"
             }`}
           >
-            未指定的委託
+            開放委託
           </button>
         </div>
       )}
@@ -310,16 +321,18 @@ export function HomePage() {
       {tab === "discover" ? (
         <>
           <div className="mb-3 px-4 sm:px-6">
-            <p className="text-xs text-white/45">{selectedCategory}</p>
+            <button onClick={() => setShowCategories(true)} className="text-xs text-white/45 transition-colors hover:text-white">
+              {selectedCategory}
+            </button>
           </div>
 
-          {/* Dense two-column masonry on mobile, expanding on larger screens. */}
+          {/* Dense two-column masonry on mobile/tablet; a real 5-6 col grid from lg up. */}
           {loadingArtworks ? (
             <BentoSkeleton />
           ) : visibleArtworks.length === 0 ? (
             <BentoEmpty message={`目前沒有「${selectedCategory}」作品`} />
           ) : (
-            <div className="mb-8 columns-2 gap-2 px-3 sm:columns-3 sm:px-5 lg:columns-4">
+            <div className="mb-8 columns-2 gap-2 px-3 sm:columns-3 sm:px-5 lg:grid lg:columns-none lg:grid-cols-5 lg:gap-3 lg:px-8 xl:grid-cols-6">
               {visibleArtworks.map((artwork, index) => (
                 <BentoCard key={artwork.id} artwork={artwork} index={index} isLiked={likes.has(artwork.id)} isSaved={saves.has(artwork.id)} onToggleLike={handleToggleLike} onToggleSave={handleToggleSave} />
               ))}
@@ -386,7 +399,7 @@ export function HomePage() {
             <OpenCommissionSkeleton />
           ) : openCommissions.length === 0 ? (
             <div className="mx-1 rounded-[20px] border border-dashed border-white/10 px-6 py-14 flex flex-col items-center gap-3">
-              <p className="text-gray-400 text-sm">目前沒有未指定的委託</p>
+              <p className="text-gray-400 text-sm">目前沒有開放委託</p>
               {user ? (
                 <p className="text-gray-600 text-xs">點右上角「+」發布一則，讓所有創作者都看得到</p>
               ) : (
@@ -499,7 +512,7 @@ function BentoCard({
   }
 
   return (
-    <article className="mb-3 break-inside-avoid overflow-hidden rounded-xl bg-[#151515]">
+    <article className="mb-3 break-inside-avoid overflow-hidden rounded-xl bg-[#151515] lg:mb-0">
       <div
         className={`artwork-gallery-card group relative cursor-pointer select-none overflow-hidden bg-white/5 ${ratios[index % ratios.length]}`}
         onPointerDown={handlePointerDown}
@@ -690,9 +703,9 @@ function AvatarImg({ url, name, size = 10 }: { url: string | null; name: string 
 
 function BentoSkeleton() {
   return (
-    <div className="mb-8 columns-2 gap-2 px-3 sm:columns-3 sm:px-5 lg:columns-4">
+    <div className="mb-8 columns-2 gap-2 px-3 sm:columns-3 sm:px-5 lg:grid lg:columns-none lg:grid-cols-5 lg:gap-3 lg:px-8 xl:grid-cols-6">
       {[5, 7, 6, 5, 8, 6, 7, 5].map((height, index) => (
-        <div key={index} className="mb-3 break-inside-avoid animate-pulse overflow-hidden rounded-xl bg-[#151515]">
+        <div key={index} className="mb-3 break-inside-avoid animate-pulse overflow-hidden rounded-xl bg-[#151515] lg:mb-0">
           <div className="bg-white/6" style={{ height: `${height * 32}px` }} />
           <div className="h-9 bg-white/[0.035]" />
         </div>
