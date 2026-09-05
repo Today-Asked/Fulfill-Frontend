@@ -3,6 +3,7 @@ import { ArrowLeft, Search, SlidersHorizontal, UserCheck, UserPlus } from "lucid
 import { useNavigate, useSearchParams } from "react-router";
 import { useAuth } from "../../contexts/AuthContext";
 import { listFollowedUserIds, searchCreators, toggleFollowCreator, type CreatorSummary } from "../../lib/creators";
+import { useLoginGate, LoginGateDialog } from "../components/LoginGate";
 
 const services = ["", "平面設計", "插畫", "攝影", "影像", "3D 創作", "網頁設計"];
 
@@ -18,6 +19,7 @@ export function SearchPage() {
   const [followBusy, setFollowBusy] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const loginGate = useLoginGate();
 
   const queryKey = useMemo(() => `${params.get('q') ?? ''}|${params.get('service') ?? ''}|${params.get('availability') ?? ''}|${user?.id ?? ''}`, [params, user?.id]);
   useEffect(() => { setKeyword(params.get('q') ?? ''); setService(params.get('service') ?? ''); setAvailability(params.get('availability') ?? ''); }, [params]);
@@ -30,21 +32,22 @@ export function SearchPage() {
   }, [queryKey]);
 
   function submit(e: React.FormEvent) { e.preventDefault(); const next: Record<string, string> = {}; if (keyword.trim()) next.q = keyword.trim(); if (service) next.service = service; if (availability) next.availability = availability; setParams(next); }
-  async function toggleFollow(creatorUserId: string) {
-    if (!user) { navigate('/login'); return; }
-    setFollowBusy(creatorUserId);
-    try {
-      const active = await toggleFollowCreator(user.id, creatorUserId);
-      setFollowed((old) => {
-        const next = new Set(old);
-        active ? next.add(creatorUserId) : next.delete(creatorUserId);
-        return next;
-      });
-    } catch (e) {
-      setError(e instanceof Error ? e.message : '無法更新追蹤狀態。');
-    } finally {
-      setFollowBusy(null);
-    }
+  function toggleFollow(creatorUserId: string) {
+    loginGate.requireAuth(user, async () => {
+      setFollowBusy(creatorUserId);
+      try {
+        const active = await toggleFollowCreator(user!.id, creatorUserId);
+        setFollowed((old) => {
+          const next = new Set(old);
+          active ? next.add(creatorUserId) : next.delete(creatorUserId);
+          return next;
+        });
+      } catch (e) {
+        setError(e instanceof Error ? e.message : '無法更新追蹤狀態。');
+      } finally {
+        setFollowBusy(null);
+      }
+    });
   }
 
   return <div className="pt-5 lg:pt-8">
@@ -70,6 +73,7 @@ export function SearchPage() {
       <div className="mt-4 flex flex-wrap gap-1.5">{creator.services.slice(0, 3).map((x) => <span key={x} className="rounded-full border border-white/10 px-2 py-1 text-xs text-white/45">{x}</span>)}</div>
       <div className="mt-5 flex items-center justify-between border-t border-white/8 pt-4 text-xs"><span className={creator.availability === 'open' ? 'text-emerald-300' : 'text-white/40'}>{creator.availability === 'open' ? '開放邀請' : creator.availability === 'limited' ? '檔期有限' : '暫不接案'}</span><button onClick={() => navigate(`/creator/${creator.username}`)} className="text-white/65 hover:text-white">查看個人主頁</button></div>
     </article>)}</div>}
+    <LoginGateDialog {...loginGate} />
   </div>;
 }
 

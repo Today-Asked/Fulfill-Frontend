@@ -13,10 +13,19 @@ export function Root() {
   const location = useLocation();
   const { user, loading, profileChecked, needsOnboarding, isPasswordRecovery } = useAuth();
 
-  const isAuthPage    = ["/login", "/register", "/forgot-password", "/welcome"].includes(location.pathname);
-  const isHome        = location.pathname === "/";
+  const isAuthPage    = ["/login", "/register", "/forgot-password"].includes(location.pathname);
   const isOnboarding  = location.pathname === "/onboarding";
   const isResetPassword = location.pathname === "/reset-password";
+
+  // Guests can browse Home, an artwork's detail page, a creator's public
+  // profile, and search — the same things a logged-out visitor could always
+  // window-shop. Everything else (chat, orders, create, profile, …) still
+  // requires an account.
+  const isGuestAccessible =
+    location.pathname === "/" ||
+    location.pathname === "/search" ||
+    location.pathname.startsWith("/artwork/") ||
+    location.pathname.startsWith("/creator/");
 
   if (loading) return <Spinner />;
 
@@ -24,9 +33,7 @@ export function Root() {
 
   if (isResetPassword) return <Frame isAuthPage={false} isOnboarding={false}><Outlet /></Frame>;
 
-  // Guests land on the homepage itself (with a stripped-down nav), not a
-  // separate splash page — /welcome is only reachable directly by URL now.
-  if (!user && !isAuthPage && !isHome) return <Navigate to="/welcome" replace />;
+  if (!user && !isAuthPage && !isGuestAccessible) return <Navigate to="/login" replace />;
 
   if (user && isAuthPage) return <Navigate to="/" replace />;
 

@@ -4,6 +4,7 @@ import { Search, Bell, Heart, Bookmark, ChevronRight, ImageOff, X, Loader2, Menu
 import { supabase } from "../../lib/supabase";
 import { useAuth } from "../../contexts/AuthContext";
 import { listOpenCommissions, inquireCommission, type Commission } from "../../lib/commissions";
+import { useLoginGate, LoginGateDialog } from "../components/LoginGate";
 
 interface Artwork {
   id: number;
@@ -69,6 +70,7 @@ export function HomePage() {
   const [loadingCommissions, setLoadingCommissions] = useState(false);
   const [commissionsError, setCommissionsError] = useState("");
   const [inquiringId, setInquiringId]           = useState<number | null>(null);
+  const loginGate = useLoginGate();
 
   // ── Effect 1: 拿 myArtistId + 創作者（只在 user 改變時執行）──────────────
   useEffect(() => {
@@ -152,36 +154,36 @@ export function HomePage() {
   }, [user, myArtistReady, myArtistId]);
 
   // ── 按讚切換 ────────────────────────────────────────────────────────────
-  async function handleToggleLike(artworkId: number, e: React.MouseEvent) {
+  function handleToggleLike(artworkId: number, e: React.MouseEvent) {
     e.stopPropagation();
-    if (!user) return;
-
-    if (likes.has(artworkId)) {
-      await supabase.from("likes").delete()
-        .eq("user_id", user.id).eq("artwork_id", artworkId);
-      setLikes((prev) => { const s = new Set(prev); s.delete(artworkId); return s; });
-    } else {
-      await supabase.from("likes").insert({ user_id: user.id, artwork_id: artworkId });
-      setLikes((prev) => new Set([...prev, artworkId]));
-    }
+    loginGate.requireAuth(user, async () => {
+      if (likes.has(artworkId)) {
+        await supabase.from("likes").delete()
+          .eq("user_id", user!.id).eq("artwork_id", artworkId);
+        setLikes((prev) => { const s = new Set(prev); s.delete(artworkId); return s; });
+      } else {
+        await supabase.from("likes").insert({ user_id: user!.id, artwork_id: artworkId });
+        setLikes((prev) => new Set([...prev, artworkId]));
+      }
+    });
   }
 
-  async function handleToggleSave(artworkId: number, e: React.MouseEvent) {
+  function handleToggleSave(artworkId: number, e: React.MouseEvent) {
     e.stopPropagation();
-    if (!user) { navigate("/login"); return; }
-
-    if (saves.has(artworkId)) {
-      await supabase.from("saves").delete().eq("user_id", user.id).eq("artwork_id", artworkId);
-      setSaves((prev) => { const next = new Set(prev); next.delete(artworkId); return next; });
-    } else {
-      await supabase.from("saves").insert({ user_id: user.id, artwork_id: artworkId });
-      setSaves((prev) => new Set([...prev, artworkId]));
-    }
+    loginGate.requireAuth(user, async () => {
+      if (saves.has(artworkId)) {
+        await supabase.from("saves").delete().eq("user_id", user!.id).eq("artwork_id", artworkId);
+        setSaves((prev) => { const next = new Set(prev); next.delete(artworkId); return next; });
+      } else {
+        await supabase.from("saves").insert({ user_id: user!.id, artwork_id: artworkId });
+        setSaves((prev) => new Set([...prev, artworkId]));
+      }
+    });
   }
 
   // ── Effect 3: 撈未指定的委託（切到該頁籤時才撈）──────────────────────────
   useEffect(() => {
-    if (tab !== "commissions" || !user) return;
+    if (tab !== "commissions") return;
     setLoadingCommissions(true);
     setCommissionsError("");
     listOpenCommissions()
@@ -192,18 +194,19 @@ export function HomePage() {
 
   // ── 諮詢詳情：任何人都能聊，不會佔用這則委託。開聊天室並標記這則委託，
   // 讓委託者之後可以在聊天室裡一鍵邀請 ──────────────────────────────────
-  async function handleInquire(commission: Commission) {
-    if (!user) { navigate("/login"); return; }
-    setInquiringId(commission.id);
-    setCommissionsError("");
-    try {
-      const chatId = await inquireCommission(commission, user.id);
-      navigate(`/chat/${chatId}`);
-    } catch (e) {
-      setCommissionsError(e instanceof Error ? e.message : "開啟對話失敗，請稍後再試。");
-    } finally {
-      setInquiringId(null);
-    }
+  function handleInquire(commission: Commission) {
+    loginGate.requireAuth(user, async () => {
+      setInquiringId(commission.id);
+      setCommissionsError("");
+      try {
+        const chatId = await inquireCommission(commission, user!.id);
+        navigate(`/chat/${chatId}`);
+      } catch (e) {
+        setCommissionsError(e instanceof Error ? e.message : "開啟對話失敗，請稍後再試。");
+      } finally {
+        setInquiringId(null);
+      }
+    });
   }
 
   // ── 搜尋（300ms debounce）──────────────────────────────────────────────
@@ -360,8 +363,7 @@ export function HomePage() {
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        if (!user) { navigate("/login"); return; }
-                        navigate(`/invite/${creator.id}`);
+                        loginGate.requireAuth(user, () => navigate(`/invite/${creator.id}`), "登入解鎖合作邀請");
                       }}
                       className="text-[10px] px-2.5 py-1 rounded-lg bg-white/8 border border-white/10 text-gray-200 hover:bg-white/14 transition-colors shrink-0 ml-2"
                     >
@@ -383,9 +385,21 @@ export function HomePage() {
           {loadingCommissions ? (
             <OpenCommissionSkeleton />
           ) : openCommissions.length === 0 ? (
-            <div className="mx-1 rounded-[20px] border border-dashed border-white/10 px-6 py-14 flex flex-col items-center gap-2">
+            <div className="mx-1 rounded-[20px] border border-dashed border-white/10 px-6 py-14 flex flex-col items-center gap-3">
               <p className="text-gray-400 text-sm">目前沒有未指定的委託</p>
-              <p className="text-gray-600 text-xs">點右上角「+」發布一則，讓所有創作者都看得到</p>
+              {user ? (
+                <p className="text-gray-600 text-xs">點右上角「+」發布一則，讓所有創作者都看得到</p>
+              ) : (
+                <>
+                  <p className="text-gray-600 text-xs">登入新增一則，讓所有創作者都看得到</p>
+                  <button
+                    onClick={() => navigate("/login")}
+                    className="mt-1 px-5 py-2 rounded-full bg-white/8 border border-white/12 text-gray-300 text-xs hover:bg-white/12 transition-colors"
+                  >
+                    登入新增一則
+                  </button>
+                </>
+              )}
             </div>
           ) : (
             <div className="flex flex-col gap-3">
@@ -425,6 +439,8 @@ export function HomePage() {
           onClose={() => setShowCategories(false)}
         />
       )}
+
+      <LoginGateDialog {...loginGate} />
     </div>
   );
 }

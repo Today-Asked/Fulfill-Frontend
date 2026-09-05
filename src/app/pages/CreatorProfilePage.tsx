@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router";
-import { ArrowLeft, ImageOff, Info, Send, UserCheck, UserPlus } from "lucide-react";
+import { ArrowLeft, ImageOff, Info, Lock, Send, UserCheck, UserPlus } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import { useAuth } from "../../contexts/AuthContext";
 import { getOrCreateConversation } from "../../lib/chat";
 import { submitReport, toggleBlock, type ReportReason } from "../../lib/creators";
+import { useLoginGate, LoginGateDialog } from "../components/LoginGate";
 
 interface CreatorProfile {
   userId: string;
@@ -35,6 +36,7 @@ export function CreatorProfilePage() {
   const [isFollowing, setIsFollowing] = useState(false);
   const [followerCount, setFollowerCount] = useState(0);
   const [showSafety, setShowSafety] = useState(false);
+  const loginGate = useLoginGate();
 
   useEffect(() => {
     if (!usernameParam) return;
@@ -174,7 +176,7 @@ export function CreatorProfilePage() {
           </button>
           {!isOwnProfile && (
             <button
-              onClick={() => { if (!user) { navigate('/login'); return; } setShowSafety(true); }}
+              onClick={() => loginGate.requireAuth(user, () => setShowSafety(true))}
               aria-label="帳號資訊與安全選項"
               className="grid h-10 w-10 place-items-center rounded-full border border-white/20 bg-white/10 text-white/65 backdrop-blur-xl transition-all hover:bg-white/15 hover:text-white"
             >
@@ -225,27 +227,32 @@ export function CreatorProfilePage() {
           </button>
         ) : (
           <div className="grid grid-cols-[1fr_1fr_auto] gap-3">
+            {user ? (
+              <button
+                onClick={() => navigate(`/invite/${profile.artistId}`)}
+                className="flex items-center justify-center gap-2 rounded-xl bg-white py-3 font-semibold text-black transition-opacity hover:opacity-90"
+              >
+                <Send size={16} />合作邀請
+              </button>
+            ) : (
+              <button
+                onClick={() => loginGate.requireAuth(user, () => {}, "登入解鎖合作邀請")}
+                className="flex items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/5 py-3 font-semibold text-white/50 transition-colors hover:bg-white/10 hover:text-white/70"
+              >
+                <Lock size={15} />合作邀請
+              </button>
+            )}
             <button
-              onClick={() => {
-                if (!user) { navigate("/login"); return; }
-                navigate(`/invite/${profile.artistId}`);
-              }}
-              className="flex items-center justify-center gap-2 rounded-xl bg-white py-3 font-semibold text-black transition-opacity hover:opacity-90"
-            >
-              <Send size={16} />合作邀請
-            </button>
-            <button
-              onClick={async () => {
-                if (!user) { navigate("/login"); return; }
-                const convId = await getOrCreateConversation(user.id, profile.userId);
+              onClick={() => loginGate.requireAuth(user, async () => {
+                const convId = await getOrCreateConversation(user!.id, profile.userId);
                 if (convId) navigate(`/chat/${convId}`);
-              }}
+              })}
               className="flex-1 py-3 rounded-xl bg-white/10 backdrop-blur-xl text-white font-semibold hover:opacity-90 transition-opacity shadow-[inset_0_2px_8px_rgba(255,255,255,0.24),0_4px_16px_rgba(255,255,255,0.12)] border border-white/30"
             >
               聊聊
             </button>
             <button
-              onClick={() => { if (!user) { navigate("/login"); return; } handleToggleFollow(); }}
+              onClick={() => loginGate.requireAuth(user, handleToggleFollow)}
               aria-label={isFollowing ? "取消追蹤" : "追蹤這位創作者"}
               className={`flex h-12 min-w-24 items-center justify-center gap-2 rounded-xl border px-4 text-sm font-semibold backdrop-blur-xl transition-all ${
                 isFollowing
@@ -316,6 +323,7 @@ export function CreatorProfilePage() {
           onBlocked={() => navigate('/search')}
         />
       )}
+      <LoginGateDialog {...loginGate} />
     </div>
   );
 }
