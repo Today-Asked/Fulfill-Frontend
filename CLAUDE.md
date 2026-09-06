@@ -19,7 +19,7 @@ npx supabase db push
 ```
 This runs everything in `supabase/migrations/` in order, on a brand-new project. If you're ever re-pointing the CLI at a project whose schema was *already* built by hand (or by an older push), run `npx supabase migration list` first to see what the CLI thinks is applied, and `npx supabase migration repair --status applied <version>` for anything that's actually already there — don't add `if not exists` to old migration files to route around it.
 
-**3. Update env file** (`.env.mytest` for local dev):
+**3. Update env file** (`.env` — the only env file that exists, used for local dev regardless of `--mode`):
 ```
 VITE_SUPABASE_URL=https://<new-project-ref>.supabase.co
 VITE_SUPABASE_ANON_KEY=<new-anon-key>
@@ -51,13 +51,13 @@ npx supabase db push                # applies it and records it as applied
 ## Commands
 
 ```bash
-npm run dev        # dev server (uses .env.mytest via --mode mytest)
+npm run dev        # dev server (--mode fulfill; see note below)
 npm run build      # production build
 ```
 
 There is **no TypeScript compiler installed**. Vite uses esbuild for transpilation only — type errors won't surface at build time. Treat `.tsx`/`.ts` types as documentation, not enforcement.
 
-Environment files: `.env.mytest` (dev/test), `.env.test`, `.env.official`. The dev script hardcodes `--mode mytest`, so `.env.mytest` is always active locally.
+Environment files: only `.env` actually exists right now. The dev script hardcodes `--mode fulfill`, but there's no `.env.fulfill` (or `.env.test` / `.env.official`) file to go with it — Vite always loads the base `.env` regardless of `--mode`, so the mode name is currently cosmetic and every mode reads the same file. If separate dev/test/production environments are ever needed, create the matching `.env.<mode>` files (Vite loads `.env`, then `.env.<mode>`, with the latter taking precedence) — until then, don't assume `--mode` is switching anything.
 
 ## Architecture
 
