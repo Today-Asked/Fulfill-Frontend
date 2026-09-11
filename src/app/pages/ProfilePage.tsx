@@ -380,7 +380,7 @@ export function ProfilePage() {
                 </div>
               )}
               {profile?.bio && (
-                <p className="mt-2 line-clamp-2 text-xs text-gray-500">{profile.bio}</p>
+                <p className="mt-2 line-clamp-2 whitespace-pre-line text-xs text-gray-500">{profile.bio}</p>
               )}
             </div>
           </div>

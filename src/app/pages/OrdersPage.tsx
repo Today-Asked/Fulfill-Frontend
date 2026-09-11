@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { CalendarDays, Check, ChevronLeft, ChevronRight, Clock3, Download, ExternalLink, Inbox, MessageCircle, Send, X } from "lucide-react";
+import { CalendarDays, Check, ChevronLeft, ChevronRight, Clock3, Download, ExternalLink, FileText, Inbox, Info as InfoIcon, MessageCircle, Paperclip, Send, X } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router";
 import { useAuth } from "../../contexts/AuthContext";
 import {
@@ -39,6 +39,7 @@ export function OrdersPage() {
   const [error, setError] = useState("");
   const [busyId, setBusyId] = useState<number | null>(null);
   const [declining, setDeclining] = useState<Commission | null>(null);
+  const [viewing, setViewing] = useState<Commission | null>(null);
 
   async function reload() {
     if (!user) return;
@@ -83,13 +84,7 @@ export function OrdersPage() {
     <div className="pt-6 lg:pt-10">
       <CommissionCalendar
         commissions={calendarItems}
-        onOpenCommission={(commission) => {
-          if (commission.chatId) {
-            navigate(`/chat/${commission.chatId}`);
-            return;
-          }
-          document.getElementById(`commission-${commission.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
-        }}
+        onOpenCommission={(commission) => setViewing(commission)}
       />
 
       <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
@@ -148,6 +143,7 @@ export function OrdersPage() {
                   <button onClick={() => setDeclining(item)} className="flex items-center gap-2 border border-white/15 px-4 py-2.5 text-sm text-white/70 hover:border-white/30"><X size={16} />婉拒</button>
                 </>}
                 {item.chatId && <button onClick={() => navigate(`/chat/${item.chatId}`)} className="flex items-center gap-2 border border-white/15 px-4 py-2.5 text-sm text-white/70"><MessageCircle size={16} />開啟對話</button>}
+                <button onClick={(e) => { e.stopPropagation(); setViewing(item); }} className="flex items-center gap-2 border border-white/15 px-4 py-2.5 text-sm text-white/70 hover:border-white/30"><InfoIcon size={16} />查看完整詳情</button>
               </div>
             </article>
           );})}
@@ -155,6 +151,18 @@ export function OrdersPage() {
       )}
 
       {declining && <DeclineDialog item={declining} onClose={() => setDeclining(null)} onDone={async () => { setDeclining(null); await reload(); }} />}
+
+      {viewing && (
+        <CommissionDetailModal
+          item={viewing}
+          myUserId={user?.id ?? null}
+          busy={busyId === viewing.id}
+          onClose={() => setViewing(null)}
+          onAccept={() => void accept(viewing)}
+          onDecline={() => { setDeclining(viewing); setViewing(null); }}
+          onOpenChat={() => navigate(`/chat/${viewing.chatId}`)}
+        />
+      )}
     </div>
   );
 }
@@ -327,4 +335,102 @@ function DeclineDialog({ item, onClose, onDone }: { item: Commission; onClose: (
       <div className="mt-6 flex justify-end gap-2"><button onClick={onClose} className="px-4 py-2.5 text-sm text-white/50">取消</button><button disabled={busy} onClick={() => void submit()} className="bg-white px-4 py-2.5 text-sm font-semibold text-black disabled:opacity-40">確認婉拒</button></div>
     </div>
   </div>;
+}
+
+/**
+ * Everything captured when the commission was created — the calendar's
+ * "查看訂單" used to either jump straight to chat or scroll-into-view a card
+ * in the current role tab, which silently did nothing if the commission
+ * belonged to the *other* tab. This works regardless of which tab is active.
+ */
+function CommissionDetailModal({
+  item,
+  myUserId,
+  busy,
+  onClose,
+  onAccept,
+  onDecline,
+  onOpenChat,
+}: {
+  item: Commission;
+  myUserId: string | null;
+  busy: boolean;
+  onClose: () => void;
+  onAccept: () => void;
+  onDecline: () => void;
+  onOpenChat: () => void;
+}) {
+  const iAmClient = item.clientId === myUserId;
+  const counterpartLabel = iAmClient
+    ? (item.artistUserId ? `邀請 ${item.artistName}` : "公開委託（尚未有人接下）")
+    : `來自 ${item.clientName}`;
+
+  return (
+    <div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/75 p-0 sm:items-center sm:p-5" role="dialog" aria-modal="true" aria-labelledby="commission-detail-title">
+      <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto border border-white/15 bg-[#171717] p-6 shadow-2xl sm:rounded-2xl">
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 text-xs text-white/40"><Clock3 size={13} />{new Date(item.createdAt).toLocaleDateString('zh-TW')}</div>
+            <h2 id="commission-detail-title" className="mt-1.5 text-xl font-semibold text-white">{item.orgName}</h2>
+            <p className="mt-1 text-sm text-white/50">{counterpartLabel}</p>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <span className={`border px-3 py-1 text-xs ${item.status === 'pending' ? 'border-amber-300/30 text-amber-200' : item.status === 'rejected' ? 'border-white/10 text-white/35' : 'border-emerald-300/30 text-emerald-200'}`}>{statusLabel[item.status]}</span>
+            <button onClick={onClose} aria-label="關閉" className="text-white/40 hover:text-white"><X size={20} /></button>
+          </div>
+        </div>
+
+        <p className="mt-5 whitespace-pre-wrap text-sm leading-6 text-white/70">{item.description || "未填寫合作需求。"}</p>
+
+        <dl className="mt-5 grid gap-4 border-t border-white/8 pt-4 text-sm sm:grid-cols-2">
+          <Info label="服務" value={item.services.join('、') || '未填寫'} />
+          <Info label="預算" value={formatBudget(item)} />
+          <Info label="初稿期限" value={item.draftDueDate ? new Date(item.draftDueDate).toLocaleDateString('zh-TW') : '未指定'} />
+          <Info label="完稿 Deadline" value={item.finalDueDate ? new Date(item.finalDueDate).toLocaleDateString('zh-TW') : '未指定'} />
+        </dl>
+
+        {item.contact && (
+          <div className="mt-4 border-t border-white/8 pt-4">
+            <p className="text-xs text-white/35">聯絡方式</p>
+            <p className="mt-1 text-sm text-white/75">{item.contact}</p>
+          </div>
+        )}
+
+        {item.hasAssets && (
+          <div className="mt-4 flex items-center gap-2 text-sm text-white/60">
+            <Paperclip size={15} className="text-white/35" />已備妥文字、Logo、照片或其他製作素材
+          </div>
+        )}
+
+        {item.referenceUrls.length > 0 && (
+          <div className="mt-4 border-t border-white/8 pt-4">
+            <p className="mb-2 text-xs text-white/35">參考連結</p>
+            <div className="grid gap-1.5">
+              {item.referenceUrls.map((url) => (
+                <a key={url} href={url} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 truncate text-sm text-sky-300 hover:underline">
+                  <FileText size={13} className="shrink-0" />{url}
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {item.status === 'rejected' && item.declineReason && (
+          <div className="mt-4 border-l-2 border-white/10 pl-4">
+            <p className="text-xs text-white/35">{iAmClient ? '對方婉拒原因' : '你婉拒的原因'}</p>
+            <p className="mt-1 text-sm text-white/70">{declineReasonLabel[item.declineReason]}</p>
+            {item.replyNote && <p className="mt-1 whitespace-pre-wrap text-sm text-white/50">{item.replyNote}</p>}
+          </div>
+        )}
+
+        <div className="mt-6 flex flex-wrap justify-end gap-2 border-t border-white/8 pt-5">
+          {!iAmClient && item.status === 'pending' && <>
+            <button disabled={busy} onClick={onDecline} className="flex items-center gap-2 border border-white/15 px-4 py-2.5 text-sm text-white/70 hover:border-white/30"><X size={16} />婉拒</button>
+            <button disabled={busy} onClick={onAccept} className="flex items-center gap-2 bg-white px-4 py-2.5 text-sm font-semibold text-black disabled:opacity-40"><Check size={16} />接受並開始對話</button>
+          </>}
+          {item.chatId && <button onClick={onOpenChat} className="flex items-center gap-2 border border-white/15 px-4 py-2.5 text-sm text-white/70"><MessageCircle size={16} />開啟對話</button>}
+        </div>
+      </div>
+    </div>
+  );
 }

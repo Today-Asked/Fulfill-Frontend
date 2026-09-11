@@ -201,7 +201,7 @@ export function CreatorProfilePage() {
 
         {/* Bio */}
         {profile.bio && (
-          <p className="text-gray-300 text-sm leading-relaxed mb-5">{profile.bio}</p>
+          <p className="whitespace-pre-line text-gray-300 text-sm leading-relaxed mb-5">{profile.bio}</p>
         )}
 
         {profile.expertise.length > 0 && (
