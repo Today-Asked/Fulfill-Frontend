@@ -102,7 +102,7 @@ function fallbackRanking(pool: CreatorSummary[], keywords: string[]): RankedCrea
 async function fetchArtworkDigest(artistId: number): Promise<string[]> {
   const { data } = await supabase
     .from("artworks")
-    .select("title, artwork_tags(tags(name))")
+    .select("title, description, artwork_tags(tags(name))")
     .eq("artist_id", artistId)
     .eq("status", "published")
     .is("deleted_at", null)
@@ -112,7 +112,14 @@ async function fetchArtworkDigest(artistId: number): Promise<string[]> {
   return (data ?? []).map((row: any) => {
     const tagNames: string[] = (row.artwork_tags ?? []).map((item: any) => item.tags?.name).filter(Boolean);
     const title = row.title?.trim() || "未命名作品";
-    return tagNames.length ? `${title}（標籤：${tagNames.join("、")}）` : title;
+    const descSnippet = row.description?.trim().slice(0, 60);
+
+    const details = [
+      tagNames.length ? `標籤：${tagNames.join("、")}` : null,
+      descSnippet ? `簡介：${descSnippet}` : null,
+    ].filter(Boolean);
+
+    return details.length ? `${title}（${details.join("；")}）` : title;
   });
 }
 

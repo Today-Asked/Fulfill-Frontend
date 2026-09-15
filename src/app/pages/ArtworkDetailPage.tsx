@@ -12,6 +12,7 @@ interface ArtworkDetail {
   cover_image_url: string | null;
   artist_id: number;
   created_at: string;
+  tags: string[];
 }
 
 interface ArtworkMediaItem {
@@ -55,14 +56,17 @@ export function ArtworkDetailPage() {
     (async () => {
       const { data: aw, error } = await supabase
         .from("artworks")
-        .select("id, title, description, cover_image_url, artist_id, created_at")
+        .select("id, title, description, cover_image_url, artist_id, created_at, artwork_tags(tags(name))")
         .eq("id", id)
         .eq("status", "published")
         .is("deleted_at", null)
         .single();
 
       if (error || !aw) { setNotFound(true); setLoading(false); return; }
-      setArtwork(aw);
+      const tags: string[] = (aw.artwork_tags ?? [])
+        .map((item: any) => item.tags?.name)
+        .filter(Boolean);
+      setArtwork({ ...aw, tags });
       setActiveImage(0);
 
       const [apRes, moreRes, likeRes, saveRes, mediaRes] = await Promise.all([
@@ -324,9 +328,20 @@ export function ArtworkDetailPage() {
 
         {/* Description — 置中 */}
         {artwork.description && (
-          <p className="text-white/60 text-sm leading-relaxed text-center mb-8">
+          <p className="text-white/60 text-sm leading-relaxed text-center mb-4">
             {artwork.description}
           </p>
+        )}
+
+        {/* Tags — 置中 */}
+        {artwork.tags.length > 0 && (
+          <div className="flex flex-wrap justify-center gap-2 mb-8">
+            {artwork.tags.map((tag) => (
+              <span key={tag} className="rounded-full bg-white/6 px-3 py-1.5 text-xs text-white/50">
+                {tag}
+              </span>
+            ))}
+          </div>
         )}
 
         {/* Find more */}

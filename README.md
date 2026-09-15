@@ -110,7 +110,7 @@ npm install
 
 ### 2. 設定環境變數
 
-於專案根目錄建立 `.env`（`npm run dev` 固定以 `fulfill` mode 啟動，但目前僅有 `.env` 一份環境設定檔，Vite 在任何 mode 下都會載入它，`--mode` 名稱本身暫無區分環境的實際作用）：
+於專案根目錄建立 `.env`（`npm run dev` 固定以 `fulfill` mode （預設模式）啟動）：
 
 ```bash
 VITE_SUPABASE_URL=https://<your-project-ref>.supabase.co
