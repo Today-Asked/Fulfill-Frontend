@@ -82,7 +82,7 @@ export async function searchCreators(query: CreatorQuery = {}): Promise<CreatorS
 
   if (query.viewerId) {
     const blockedIds = new Set(await listBlockedIds(query.viewerId));
-    rows = rows.filter((row) => row.userId !== query.viewerId && !blockedIds.has(row.userId));
+    rows = rows.filter((row) => !blockedIds.has(row.userId));
   }
 
   // Name matching happens client side: the name lives on the joined users
