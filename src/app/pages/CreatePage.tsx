@@ -1,10 +1,11 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router";
-import { FileText, GripVertical, ImagePlus, Images, Loader2, Plus, Tags, Type, X } from "lucide-react";
+import { FileText, FolderTree, GripVertical, ImagePlus, Images, Loader2, Plus, Tags, Type, X } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
 import { useUpload } from "../../lib/useUpload";
 import { getMyArtistProfileId } from "../../lib/commissions";
 import { createArtwork } from "../../lib/artworks";
+import { ARTWORK_CATEGORIES } from "../../lib/artworkCategories";
 import { TagInput } from "../components/TagInput";
 
 const MAX_IMAGES = 10;
@@ -23,6 +24,7 @@ export function CreatePage() {
   const navigate = useNavigate();
   const [title, setTitle] = useState("");
   const [desc, setDesc] = useState("");
+  const [category, setCategory] = useState<string>("");
   const [tags, setTags] = useState<string[]>([]);
   const [images, setImages] = useState<SelectedImage[]>([]);
   const [activeImageId, setActiveImageId] = useState<string | null>(null);
@@ -121,6 +123,7 @@ export function CreatePage() {
     if (!user) return;
     if (!images.length) { setError("請至少選擇一張作品圖片。"); return; }
     if (!title.trim()) { setError("請填寫作品標題。"); return; }
+    if (!category) { setError("請選擇作品分類。"); return; }
 
     setSubmitting(true);
     setUploadedCount(0);
@@ -134,7 +137,8 @@ export function CreatePage() {
       }
       const artistId = await getMyArtistProfileId(user.id);
       if (!artistId) throw new Error("找不到你的創作者檔案，請重新整理再試一次。");
-      const artworkId = await createArtwork(artistId, { title, description: desc, coverImageUrl: mediaUrls[0], mediaUrls, tagNames: tags });
+      const tagNames = [category, ...tags.filter((tag) => tag !== category)];
+      const artworkId = await createArtwork(artistId, { title, description: desc, coverImageUrl: mediaUrls[0], mediaUrls, tagNames });
       navigate(`/artwork/${artworkId}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "發佈失敗，請稍後再試。");
@@ -143,7 +147,7 @@ export function CreatePage() {
   }
 
   const busy = uploading || submitting;
-  const canSubmit = images.length > 0 && title.trim().length > 0 && !busy;
+  const canSubmit = images.length > 0 && title.trim().length > 0 && category.length > 0 && !busy;
 
   return (
     <div className="rounded-2xl bg-[#141414] pb-10">
@@ -216,6 +220,23 @@ export function CreatePage() {
         <div>
           <label className="mb-2 flex items-center gap-1.5 text-xs text-gray-400"><FileText size={12} />作品說明</label>
           <textarea value={desc} onChange={(event) => setDesc(event.target.value)} placeholder="說說這件作品的靈感、媒材或創作過程...（選填）" rows={4} className="w-full resize-none rounded-xl border border-white/8 bg-white/5 px-4 py-3 text-sm text-white outline-none transition-all placeholder:text-gray-600 focus:border-white/40 focus:bg-white/8" />
+        </div>
+        <div>
+          <label className="mb-2 flex items-center gap-1.5 text-xs text-gray-400"><FolderTree size={12} />作品分類</label>
+          <div className="flex flex-wrap gap-2">
+            {ARTWORK_CATEGORIES.map((item) => (
+              <button
+                key={item}
+                type="button"
+                onClick={() => setCategory(item)}
+                className={`rounded-full border px-3.5 py-2 text-xs font-medium transition-colors active:scale-[0.98] ${
+                  category === item ? "border-white bg-white text-black" : "border-white/12 bg-white/5 text-white/60 hover:border-white/30 hover:text-white"
+                }`}
+              >
+                {item}
+              </button>
+            ))}
+          </div>
         </div>
         <div>
           <label className="mb-2 flex items-center gap-1.5 text-xs text-gray-400"><Tags size={12} />作品標籤</label>

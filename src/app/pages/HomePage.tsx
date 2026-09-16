@@ -5,6 +5,7 @@ import { supabase } from "../../lib/supabase";
 import { useAuth } from "../../contexts/AuthContext";
 import { listOpenCommissions, inquireCommission, type Commission } from "../../lib/commissions";
 import { useLoginGate, LoginGateDialog } from "../components/LoginGate";
+import { ARTWORK_CATEGORIES } from "../../lib/artworkCategories";
 
 interface Artwork {
   id: number;
@@ -13,7 +14,7 @@ interface Artwork {
   tags?: string[];
 }
 
-const artworkCategories = ["全部", "繪畫與插畫", "平面設計", "品牌設計", "攝影", "3D 創作", "動態設計"];
+const artworkCategories = ["全部", ...ARTWORK_CATEGORIES];
 
 function normalizeArtwork(row: any): Artwork {
   return {
