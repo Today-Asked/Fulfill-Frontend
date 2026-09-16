@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router";
 import { supabase } from "../../lib/supabase";
+import { translateAuthError } from "../../lib/authErrors";
 
 type PageState = "loading" | "expired" | "ready";
 
@@ -49,7 +50,7 @@ export function ResetPasswordPage() {
     setLoading(false);
 
     if (updateError) {
-      setError(updateError.message);
+      setError(translateAuthError(updateError.message));
       return;
     }
 
@@ -98,7 +99,6 @@ export function ResetPasswordPage() {
   return (
     <div className="flex flex-col h-full px-6 pt-16 pb-8">
       <div className="mb-10">
-        <div className="w-10 h-10 rounded-2xl bg-white/10 mb-6 shadow-lg shadow-white/30" />
         <h1 className="text-2xl font-bold text-white mb-1">設定新密碼</h1>
         <p className="text-sm text-gray-500">請輸入你的新密碼</p>
       </div>

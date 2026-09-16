@@ -48,8 +48,8 @@ export function OnboardingPage() {
     <div className="flex flex-col h-full px-6 pt-14 pb-8 overflow-y-auto">
       {/* Header */}
       <div className="mb-8">
-        <div className="w-10 h-10 rounded-2xl bg-white/10 mb-6 shadow-lg shadow-white/30" />
-        <h1 className="text-2xl font-bold text-white mb-1">設定你的個人檔案</h1>
+        
+        <h1 className="text-2xl font-bold text-white mb-1">設定個人檔案</h1>
         <p className="text-sm text-gray-500">這些資訊會顯示在你的公開頁面</p>
       </div>
 

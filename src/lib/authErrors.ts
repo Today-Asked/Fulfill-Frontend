@@ -6,11 +6,15 @@ const ERROR_MAP: Record<string, string> = {
   "Invalid login credentials":
     "Email 或密碼錯誤",
   "Email not confirmed":
-    "Email 尚未驗證，請至信箱點擊驗證連結",
+    "Email 尚未驗證，請至信箱查看驗證碼完成驗證",
+  "Token has expired or is invalid":
+    "驗證碼已失效或不正確，請重新申請",
+  "New password should be different from the old password.":
+    "新密碼不能與舊密碼相同",
   "User already registered":
     "此 Email 已被註冊",
   "Password should be at least 6 characters":
-    "密碼至少需要 6 個字元",
+    "密碼至少 6 個字元",
   "Unable to validate email address: invalid format":
     "Email 格式不正確",
   "signup is disabled":

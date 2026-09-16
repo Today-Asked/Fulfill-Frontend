@@ -228,7 +228,7 @@ secure_password_change = false
 # Controls the minimum amount of time that must pass before sending another signup confirmation or password reset email.
 max_frequency = "1s"
 # Number of characters used in the email OTP.
-otp_length = 6
+otp_length = 8
 # Number of seconds before the email OTP expires (defaults to 1 hour).
 otp_expiry = 3600
 
@@ -246,6 +246,17 @@ otp_expiry = 3600
 # [auth.email.template.invite]
 # subject = "You have been invited"
 # content_path = "./supabase/templates/invite.html"
+
+# Branded, code-only templates — no {{ .ConfirmationURL }}, so there's never a
+# supabase.co link for users to second-guess. The app collects the {{ .Token }}
+# code itself via supabase.auth.verifyOtp() (see RegisterPage/ForgotPasswordPage).
+[auth.email.template.confirmation]
+subject = "驗證你的 Fulfill 帳號"
+content_path = "./supabase/templates/confirmation.html"
+
+[auth.email.template.recovery]
+subject = "重設你的 Fulfill 密碼"
+content_path = "./supabase/templates/recovery.html"
 
 # Uncomment to customize notification email template
 # [auth.email.notification.password_changed]

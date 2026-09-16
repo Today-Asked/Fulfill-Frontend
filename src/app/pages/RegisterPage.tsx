@@ -13,7 +13,11 @@ export function RegisterPage() {
   const [showPw, setShowPw]                   = useState(false);
   const [loading, setLoading]                 = useState(false);
   const [error, setError]                     = useState<string | null>(null);
-  const [success, setSuccess]                 = useState(false);
+  const [step, setStep]                       = useState<"form" | "verify">("form");
+  const [code, setCode]                       = useState("");
+  const [verifying, setVerifying]              = useState(false);
+  const [resending, setResending]              = useState(false);
+  const [resent, setResent]                    = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -21,10 +25,7 @@ export function RegisterPage() {
     if (password !== confirmPassword) { setError("兩次密碼不一致"); return; }
     setLoading(true);
 
-    const { data: signUpData, error: signUpError } = await supabase.auth.signUp({ 
-      email, 
-      password,
-      options: { emailRedirectTo: window.location.origin } });
+    const { data: signUpData, error: signUpError } = await supabase.auth.signUp({ email, password });
     setLoading(false);
 
     if (signUpError) { setError(translateAuthError(signUpError.message)); return; }
@@ -36,7 +37,30 @@ export function RegisterPage() {
       return;
     }
 
-    setSuccess(true);
+    setStep("verify");
+  }
+
+  async function handleVerify(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    if (code.trim().length !== 8) { setError("請輸入 8 位數驗證碼"); return; }
+    setVerifying(true);
+
+    const { error: verifyError } = await supabase.auth.verifyOtp({ email, token: code.trim(), type: "signup" });
+    setVerifying(false);
+
+    if (verifyError) { setError(translateAuthError(verifyError.message)); return; }
+    navigate("/");
+  }
+
+  async function handleResend() {
+    setError(null);
+    setResent(false);
+    setResending(true);
+    const { error: resendError } = await supabase.auth.resend({ type: "signup", email });
+    setResending(false);
+    if (resendError) { setError(translateAuthError(resendError.message)); return; }
+    setResent(true);
   }
 
   async function handleGoogleLogin() {
@@ -48,18 +72,64 @@ export function RegisterPage() {
     if (oauthError) setError(translateAuthError(oauthError.message));
   }
 
-  if (success) {
+  if (step === "verify") {
     return (
       <div className="flex flex-col items-center justify-center h-full bg-black px-8 gap-6">
         <div className="w-20 h-20 rounded-full bg-[#FFFFFF] flex items-center justify-center text-black text-2xl font-bold shadow-lg shadow-white/30">
           ✓
         </div>
         <div className="text-center">
-          <h2 className="text-xl font-semibold text-white mb-2">驗證信已送出</h2>
+          <h2 className="text-xl font-semibold text-white mb-2">驗證碼已送出</h2>
           <p className="text-sm text-gray-400">
-            請到 <span className="text-white">{email}</span> 收取驗證信，點擊連結後即可登入。
+            請到 <span className="text-white">{email}</span> 收取驗證信，輸入信中的 8 位數驗證碼完成註冊。
+          </p>
+          <p className="text-xs text-gray-600 mt-3">
+            沒看到信嗎？記得看一下垃圾郵件匣。
           </p>
         </div>
+
+        <form onSubmit={handleVerify} className="w-full flex flex-col gap-4">
+          <input
+            type="text"
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            maxLength={8}
+            required
+            value={code}
+            onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
+            placeholder="12345678"
+            className="w-full bg-white rounded-xl px-4 py-3.5 text-center text-lg tracking-[0.35em] text-gray-900 placeholder:text-gray-400 placeholder:tracking-[0.35em] focus:outline-none focus:ring-2 focus:ring-white transition-all"
+          />
+
+          {error && (
+            <p className="text-xs text-red-800 bg-red-200 rounded-md px-4 py-3">
+              {error}
+            </p>
+          )}
+          {resent && !error && (
+            <p className="text-xs text-emerald-200 bg-emerald-500/10 border border-emerald-500/20 rounded-md px-4 py-3">
+              已重新寄送一組驗證碼。
+            </p>
+          )}
+
+          <button
+            type="submit"
+            disabled={verifying}
+            className="w-full py-3.5 rounded-xl bg-white text-black font-semibold text-sm hover:bg-[#C4C4C4] active:scale-[0.98] transition-all shadow-lg shadow-white/30 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {verifying ? "驗證中…" : "確認驗證碼"}
+          </button>
+
+          <button
+            type="button"
+            onClick={handleResend}
+            disabled={resending}
+            className="text-sm text-gray-500 hover:text-gray-300 transition-colors disabled:opacity-50"
+          >
+            {resending ? "寄送中…" : "沒收到？重新寄送驗證碼"}
+          </button>
+        </form>
+
         <button
           onClick={() => navigate("/login")}
           className="w-full py-3.5 rounded-xl bg-white/8 border border-white/10 text-sm text-gray-300 hover:bg-white/12 transition-all"
