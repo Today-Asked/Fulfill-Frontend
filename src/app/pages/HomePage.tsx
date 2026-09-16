@@ -11,16 +11,27 @@ interface Artwork {
   id: number;
   title: string | null;
   cover_image_url: string | null;
+  created_at: string;
   tags?: string[];
 }
 
 const artworkCategories = ["全部", ...ARTWORK_CATEGORIES];
+const ARTWORKS_PAGE_SIZE = 12;
+const CREATORS_PER_SECTION = 3;
+const CREATORS_POOL_SIZE = 30; // 5 段份量；池子用完就不再插入新的創作者區塊
+
+function chunk<T>(items: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
+  return out;
+}
 
 function normalizeArtwork(row: any): Artwork {
   return {
     id: row.id,
     title: row.title,
     cover_image_url: row.cover_image_url,
+    created_at: row.created_at,
     tags: (row.artwork_tags ?? []).map((item: any) => item.tags?.name).filter(Boolean),
   };
 }
@@ -51,6 +62,10 @@ export function HomePage() {
   const [likes, setLikes]               = useState<Set<number>>(new Set());
   const [saves, setSaves]               = useState<Set<number>>(new Set());
   const [loadingArtworks, setLoadingArtworks] = useState(true);
+  const [loadingMoreArtworks, setLoadingMoreArtworks] = useState(false);
+  const [hasMoreArtworks, setHasMoreArtworks] = useState(true);
+  const artworksCursorRef = useRef<{ created_at: string; id: number } | null>(null);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
   const [loadingCreators, setLoadingCreators] = useState(true);
   // 自己的 artist_profile id（排除自己作品用）
   const [myArtistId, setMyArtistId]     = useState<number | null>(null);
@@ -90,13 +105,14 @@ export function HomePage() {
       setMyArtistId(aid);
       setMyArtistReady(true);
 
-      // 撈推薦創作者（排除自己）
+      // 撈推薦創作者池（排除自己）——抓一個較大的池子，之後每 12 件作品穿插一組，
+      // 池子用完就不再插入新的創作者區塊，避免同一批人重複出現
       setLoadingCreators(true);
       let creatorQuery = supabase
         .from("artist_profiles")
         .select("id, user_id, users:user_id(username, name, bio, avatar_url)")
         .order("created_at", { ascending: false })
-        .limit(6);
+        .limit(CREATORS_POOL_SIZE);
       if (user) creatorQuery = creatorQuery.neq("user_id", user.id);
 
       const { data: creatorData } = await creatorQuery;
@@ -109,8 +125,7 @@ export function HomePage() {
           name: row.users.name,
           bio: row.users.bio,
           avatar_url: row.users.avatar_url,
-        }))
-        .slice(0, 3);
+        }));
       setCreators(mapped);
       setLoadingCreators(false);
     })();
@@ -124,35 +139,91 @@ export function HomePage() {
     setArtworks([]);
     setLikes(new Set());
     setSaves(new Set());
+    artworksCursorRef.current = null;
+    setHasMoreArtworks(true);
 
     async function fetchArtworks() {
       let q = supabase
         .from("artworks")
-        .select("id, title, cover_image_url, artwork_tags(tags(name))")
+        .select("id, title, cover_image_url, created_at, artwork_tags(tags(name))")
         .eq("status", "published")
         .is("deleted_at", null)
         .order("created_at", { ascending: false })
-        .limit(6);
+        .order("id", { ascending: false })
+        .limit(ARTWORKS_PAGE_SIZE);
       if (myArtistId !== null) q = q.neq("artist_id", myArtistId);
       const { data } = await q;
       const loaded: Artwork[] = (data ?? []).map(normalizeArtwork);
 
       setArtworks(loaded);
       setLoadingArtworks(false);
+      artworksCursorRef.current = loaded.length ? { created_at: loaded[loaded.length - 1].created_at, id: loaded[loaded.length - 1].id } : null;
+      setHasMoreArtworks(loaded.length === ARTWORKS_PAGE_SIZE);
 
-      // 撈已按讚
+      await fetchLikesAndSaves(loaded);
+    }
+
+    async function fetchLikesAndSaves(loaded: Artwork[]) {
+      if (!user || loaded.length === 0) return;
+      const [{ data: likeData }, { data: saveData }] = await Promise.all([
+        supabase.from("likes").select("artwork_id").eq("user_id", user.id).in("artwork_id", loaded.map((a) => a.id)),
+        supabase.from("saves").select("artwork_id").eq("user_id", user.id).in("artwork_id", loaded.map((a) => a.id)),
+      ]);
+      setLikes((prev) => new Set([...prev, ...(likeData ?? []).map((l: any) => l.artwork_id)]));
+      setSaves((prev) => new Set([...prev, ...(saveData ?? []).map((s: any) => s.artwork_id)]));
+    }
+
+    fetchArtworks();
+  }, [user, myArtistReady, myArtistId]);
+
+  // ── 捲到底部時再撈下一批作品（維持推薦創作者區塊的固定位置）─────────────
+  async function loadMoreArtworks() {
+    if (loadingMoreArtworks || !hasMoreArtworks) return;
+    const cursor = artworksCursorRef.current;
+    setLoadingMoreArtworks(true);
+    try {
+      let q = supabase
+        .from("artworks")
+        .select("id, title, cover_image_url, created_at, artwork_tags(tags(name))")
+        .eq("status", "published")
+        .is("deleted_at", null)
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: false })
+        .limit(ARTWORKS_PAGE_SIZE);
+      if (myArtistId !== null) q = q.neq("artist_id", myArtistId);
+      if (cursor) q = q.or(`created_at.lt.${cursor.created_at},and(created_at.eq.${cursor.created_at},id.lt.${cursor.id})`);
+      const { data } = await q;
+      const loaded: Artwork[] = (data ?? []).map(normalizeArtwork);
+
+      setArtworks((prev) => [...prev, ...loaded]);
+      if (loaded.length) artworksCursorRef.current = { created_at: loaded[loaded.length - 1].created_at, id: loaded[loaded.length - 1].id };
+      setHasMoreArtworks(loaded.length === ARTWORKS_PAGE_SIZE);
+
       if (user && loaded.length > 0) {
         const [{ data: likeData }, { data: saveData }] = await Promise.all([
           supabase.from("likes").select("artwork_id").eq("user_id", user.id).in("artwork_id", loaded.map((a) => a.id)),
           supabase.from("saves").select("artwork_id").eq("user_id", user.id).in("artwork_id", loaded.map((a) => a.id)),
         ]);
-        setLikes(new Set((likeData ?? []).map((l: any) => l.artwork_id)));
-        setSaves(new Set((saveData ?? []).map((s: any) => s.artwork_id)));
+        setLikes((prev) => new Set([...prev, ...(likeData ?? []).map((l: any) => l.artwork_id)]));
+        setSaves((prev) => new Set([...prev, ...(saveData ?? []).map((s: any) => s.artwork_id)]));
       }
+    } finally {
+      setLoadingMoreArtworks(false);
     }
+  }
 
-    fetchArtworks();
-  }, [user, myArtistReady, myArtistId]);
+  // ── Effect: 觀察底部哨兵元素，進入畫面時載入下一批作品 ────────────────────
+  useEffect(() => {
+    if (tab !== "discover") return;
+    const el = sentinelRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      (entries) => { if (entries[0]?.isIntersecting) void loadMoreArtworks(); },
+      { rootMargin: "400px" },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [tab, hasMoreArtworks, loadingMoreArtworks, loadingArtworks]);
 
   // ── 按讚切換 ────────────────────────────────────────────────────────────
   function handleToggleLike(artworkId: number, e: React.MouseEvent) {
@@ -263,6 +334,62 @@ export function HomePage() {
   const visibleArtworks = selectedCategory === "全部"
     ? artworks
     : artworks.filter((artwork) => artwork.tags?.includes(selectedCategory));
+  // 每 12 件作品一段，段落之間穿插一組推薦創作者；創作者池用完後，
+  // 後面的作品段落就不再插入新的創作者區塊，改為直接接續捲動
+  const artworkChunks = chunk(visibleArtworks, ARTWORKS_PAGE_SIZE);
+  const creatorChunks = chunk(creators, CREATORS_PER_SECTION);
+
+  function renderCreatorSection(group: Creator[], key: number, showEmptyMessage: boolean) {
+    return (
+      <div key={`creators-${key}`} className="mb-6 px-3 sm:px-5">
+        <div className="flex justify-between items-center mb-3">
+          <h2 className="text-sm font-semibold text-white">推薦創作者</h2>
+          <button onClick={() => navigate("/search")} className="flex items-center gap-0.5 text-xs text-white/50 hover:text-white">
+            全部 <ChevronRight size={12} />
+          </button>
+        </div>
+        {key === 0 && loadingCreators ? (
+          <CreatorListSkeleton />
+        ) : group.length === 0 ? (
+          showEmptyMessage ? <p className="text-gray-500 text-xs px-3 py-6 text-center">尚無推薦創作者</p> : null
+        ) : (
+          <div className="flex flex-col gap-2.5">
+            {group.map((creator) => (
+              <div
+                key={creator.id}
+                onClick={() => creator.username && navigate(`/creator/${creator.username}`)}
+                className="flex cursor-pointer items-center justify-between rounded-xl bg-white/5 p-3 transition-colors hover:bg-white/8"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="relative shrink-0">
+                    <AvatarImg url={creator.avatar_url} name={creator.name} size={10} />
+                    <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-400 border-2 border-[#141414] rounded-full" />
+                  </div>
+                  <div className="min-w-0">
+                    <span className="text-white text-sm font-medium truncate block">
+                      {creator.name ?? creator.username ?? "未命名"}
+                    </span>
+                    {creator.bio && (
+                      <span className="text-gray-400 text-[11px] truncate block">{creator.bio}</span>
+                    )}
+                  </div>
+                </div>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    loginGate.requireAuth(user, () => navigate(`/invite/${creator.id}`), "登入解鎖合作邀請");
+                  }}
+                  className="text-[10px] px-2.5 py-1 rounded-lg bg-white/8 border border-white/10 text-gray-200 hover:bg-white/14 transition-colors shrink-0 ml-2"
+                >
+                  委託
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-[100dvh] bg-[#090909] pb-10">
@@ -331,63 +458,32 @@ export function HomePage() {
           {loadingArtworks ? (
             <BentoSkeleton />
           ) : visibleArtworks.length === 0 ? (
-            <BentoEmpty message={`目前沒有「${selectedCategory}」作品`} />
+            <>
+              <BentoEmpty message={`目前沒有「${selectedCategory}」作品`} />
+              {renderCreatorSection(creatorChunks[0] ?? [], 0, true)}
+            </>
           ) : (
-            <div className="mb-8 columns-2 gap-2 px-3 sm:columns-3 sm:px-5 lg:columns-4 lg:gap-3 lg:px-8 xl:columns-6">
-              {visibleArtworks.map((artwork, index) => (
-                <BentoCard key={artwork.id} artwork={artwork} index={index} isLiked={likes.has(artwork.id)} isSaved={saves.has(artwork.id)} onToggleLike={handleToggleLike} onToggleSave={handleToggleSave} />
+            <>
+              {artworkChunks.map((artworkChunk, chunkIndex) => (
+                <React.Fragment key={chunkIndex}>
+                  <div className="mb-8 columns-2 gap-2 px-3 sm:columns-3 sm:px-5 lg:columns-4 lg:gap-3 lg:px-8 xl:columns-6">
+                    {artworkChunk.map((artwork, index) => (
+                      <BentoCard key={artwork.id} artwork={artwork} index={index} isLiked={likes.has(artwork.id)} isSaved={saves.has(artwork.id)} onToggleLike={handleToggleLike} onToggleSave={handleToggleSave} />
+                    ))}
+                  </div>
+                  {/* 每段作品後插入一組創作者；池子用完（chunkIndex 超過 creatorChunks 長度）就不再插入，直接接續下一段作品 */}
+                  {chunkIndex === 0
+                    ? renderCreatorSection(creatorChunks[0] ?? [], 0, true)
+                    : creatorChunks[chunkIndex] && renderCreatorSection(creatorChunks[chunkIndex], chunkIndex, false)}
+                </React.Fragment>
               ))}
+            </>
+          )}
+          {!loadingArtworks && hasMoreArtworks && (
+            <div ref={sentinelRef} className="flex justify-center py-6">
+              {loadingMoreArtworks && <Loader2 size={20} className="animate-spin text-white/40" />}
             </div>
           )}
-
-          {/* Top Creators */}
-          <div className="mb-6 px-3 sm:px-5">
-            <div className="flex justify-between items-center mb-3">
-              <h2 className="text-sm font-semibold text-white">推薦創作者</h2>
-              <button onClick={() => navigate("/search")} className="flex items-center gap-0.5 text-xs text-white/50 hover:text-white">
-                全部 <ChevronRight size={12} />
-              </button>
-            </div>
-            {loadingCreators ? (
-              <CreatorListSkeleton />
-            ) : creators.length === 0 ? (
-              <p className="text-gray-500 text-xs px-3 py-6 text-center">尚無推薦創作者</p>
-            ) : (
-              <div className="flex flex-col gap-2.5">
-                {creators.map((creator) => (
-                  <div
-                    key={creator.id}
-                    onClick={() => creator.username && navigate(`/creator/${creator.username}`)}
-                    className="flex cursor-pointer items-center justify-between rounded-xl bg-white/5 p-3 transition-colors hover:bg-white/8"
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="relative shrink-0">
-                        <AvatarImg url={creator.avatar_url} name={creator.name} size={10} />
-                        <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-400 border-2 border-[#141414] rounded-full" />
-                      </div>
-                      <div className="min-w-0">
-                        <span className="text-white text-sm font-medium truncate block">
-                          {creator.name ?? creator.username ?? "未命名"}
-                        </span>
-                        {creator.bio && (
-                          <span className="text-gray-400 text-[11px] truncate block">{creator.bio}</span>
-                        )}
-                      </div>
-                    </div>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        loginGate.requireAuth(user, () => navigate(`/invite/${creator.id}`), "登入解鎖合作邀請");
-                      }}
-                      className="text-[10px] px-2.5 py-1 rounded-lg bg-white/8 border border-white/10 text-gray-200 hover:bg-white/14 transition-colors shrink-0 ml-2"
-                    >
-                      委託
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
         </>
       ) : (
         <div className="px-4 mb-6">
