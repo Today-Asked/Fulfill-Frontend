@@ -4,7 +4,7 @@ import { ArrowLeft, ChevronDown, Info, Send, Paperclip, Loader2, Briefcase } fro
 import { supabase } from "../../lib/supabase";
 import { useAuth } from "../../contexts/AuthContext";
 import { useUpload } from "../../lib/useUpload";
-import { getCommission, inviteCommissionArtist, listConversationCommissions, type Commission } from "../../lib/commissions";
+import { confirmDraft, confirmFinal, getCommission, inviteCommissionArtist, listConversationCommissions, type Commission } from "../../lib/commissions";
 import { submitReport, toggleBlock, type ReportReason } from "../../lib/creators";
 
 const PAGE_SIZE = 50;
@@ -44,6 +44,8 @@ export function ChatRoomPage() {
   const [showSafety, setShowSafety] = useState(false);
   const [activeCommissions, setActiveCommissions] = useState<Commission[]>([]);
   const [showOrders, setShowOrders] = useState(false);
+  const [confirmingId, setConfirmingId] = useState<number | null>(null);
+  const [confirmError, setConfirmError] = useState("");
 
   // 這個聊天室提到的「未指定委託」——委託人可以在這裡一鍵邀請對方正式接案
   const [referencedCommission, setReferencedCommission] = useState<Commission | null>(null);
@@ -226,6 +228,28 @@ export function ChatRoomPage() {
     }
   }
 
+  // 買家在「進行中的委託」面板裡確認初稿／完稿——這裡才是買家這一側的動作，
+  // 交付則是創作者在「訂單」頁的進度線上做的
+  async function handleConfirmMilestone(commission: Commission, kind: "draft" | "final") {
+    if (!user) return;
+    setConfirmingId(commission.id);
+    setConfirmError("");
+    try {
+      const posted = kind === "draft" ? await confirmDraft(commission, user.id) : await confirmFinal(commission, user.id);
+      if (posted) setMessages((prev) => [...prev, posted as DbMessage]);
+
+      setActiveCommissions((prev) =>
+        kind === "draft"
+          ? prev.map((item) => (item.id === commission.id ? { ...item, draftConfirmedAt: new Date().toISOString() } : item))
+          : prev.filter((item) => item.id !== commission.id),
+      );
+    } catch (e) {
+      setConfirmError(e instanceof Error ? e.message : "操作失敗，請重新整理再試一次。");
+    } finally {
+      setConfirmingId(null);
+    }
+  }
+
   // 傳送文字
   const handleSend = async () => {
     if (!inputText.trim() || !user || !chatId || sending) return;
@@ -343,9 +367,32 @@ export function ChatRoomPage() {
                     <ChatOrderInfo label="完稿 Deadline" value={commission.finalDueDate ? new Date(`${commission.finalDueDate}T00:00:00`).toLocaleDateString("zh-TW") : "未指定"} />
                     <ChatOrderInfo label="預算" value={formatChatBudget(commission)} />
                   </dl>
-                  <button type="button" onClick={() => navigate('/orders')} className="mt-4 rounded-full border border-white/10 px-3 py-1.5 text-[11px] text-white/55 hover:bg-white/6 hover:text-white">前往訂單頁</button>
+                  <div className="mt-4 flex flex-wrap items-center gap-2">
+                    {user?.id === commission.clientId && commission.draftDeliveredAt && !commission.draftConfirmedAt && (
+                      <button
+                        type="button"
+                        disabled={confirmingId === commission.id}
+                        onClick={() => void handleConfirmMilestone(commission, "draft")}
+                        className="rounded-full bg-white px-3 py-1.5 text-[11px] font-semibold text-black hover:opacity-90 disabled:opacity-50"
+                      >
+                        {confirmingId === commission.id ? "確認中…" : "確認初稿完成"}
+                      </button>
+                    )}
+                    {user?.id === commission.clientId && commission.finalDeliveredAt && !commission.finalConfirmedAt && (
+                      <button
+                        type="button"
+                        disabled={confirmingId === commission.id}
+                        onClick={() => void handleConfirmMilestone(commission, "final")}
+                        className="rounded-full bg-white px-3 py-1.5 text-[11px] font-semibold text-black hover:opacity-90 disabled:opacity-50"
+                      >
+                        {confirmingId === commission.id ? "確認中…" : "確認完稿・結案"}
+                      </button>
+                    )}
+                    <button type="button" onClick={() => navigate('/orders')} className="rounded-full border border-white/10 px-3 py-1.5 text-[11px] text-white/55 hover:bg-white/6 hover:text-white">前往訂單頁</button>
+                  </div>
                 </div>
               ))}
+              {confirmError && <p className="px-1 text-[11px] text-red-300">{confirmError}</p>}
             </div>
           )}
         </div>
