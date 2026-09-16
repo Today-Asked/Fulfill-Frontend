@@ -1,4 +1,4 @@
-import { createBrowserRouter } from "react-router";
+import { createBrowserRouter, redirect } from "react-router";
 import { Root } from "./Root";
 import { HomePage } from "./pages/HomePage";
 import { ChatListPage } from "./pages/ChatListPage";
@@ -21,6 +21,13 @@ import { CommissionProfilePage } from "./pages/CommissionProfilePage";
 import { EditProfilePage } from "./pages/EditProfilePage";
 
 export const router = createBrowserRouter([
+  // /welcome no longer exists (guest browsing replaced the old gated landing
+  // page), but it's still printed on business card QR codes — redirect
+  // instead of letting old codes hit a 404.
+  {
+    path: "welcome",
+    loader: () => redirect("/"),
+  },
   {
     path: "/",
     Component: Root,
