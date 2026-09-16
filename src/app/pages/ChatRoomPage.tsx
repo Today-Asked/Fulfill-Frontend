@@ -40,7 +40,6 @@ export function ChatRoomPage() {
   const [loadingEarlier, setLoadingEarlier] = useState(false);
   const [inputText, setInputText] = useState("");
   const [sending, setSending] = useState(false);
-  const [isComposing, setIsComposing] = useState(false);
   const [showSafety, setShowSafety] = useState(false);
   const [activeCommissions, setActiveCommissions] = useState<Commission[]>([]);
   const [showOrders, setShowOrders] = useState(false);
@@ -52,6 +51,7 @@ export function ChatRoomPage() {
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   // 載入更早訊息時不要自動捲到底部
   const skipNextScrollRef = useRef(false);
 
@@ -62,6 +62,14 @@ export function ChatRoomPage() {
     }
     messagesEndRef.current?.scrollIntoView({ behavior: "auto", block: "end" });
   }, [messages]);
+
+  // 輸入框隨行數長高，直到碰到上限再捲動
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 128)}px`;
+  }, [inputText]);
 
   // 載入對話資訊 + 最新 50 則訊息
   useEffect(() => {
@@ -450,30 +458,7 @@ export function ChatRoomPage() {
 
       {/* Input Bar */}
       <div className="flex-shrink-0 border-t border-white/6 px-4 pb-4 pt-2">
-        <div className="flex items-center gap-2">
-          <div className="flex-1 flex items-center bg-white/6 border border-white/10 rounded-full px-4 h-11">
-            <input
-              type="text"
-              value={inputText}
-              onChange={(e) => setInputText(e.target.value)}
-              onCompositionStart={() => setIsComposing(true)}
-              onCompositionEnd={() => setIsComposing(false)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !isComposing) handleSend();
-              }}
-              placeholder="發送訊息......"
-              className="flex-1 bg-transparent text-sm text-white outline-none placeholder:text-gray-600"
-            />
-            <button
-              type="button"
-              onClick={handleSend}
-              disabled={!inputText.trim() || sending}
-              aria-label="傳送訊息"
-              className="ml-2 grid h-8 w-8 flex-shrink-0 place-items-center rounded-full bg-white text-black transition-all hover:opacity-90 disabled:bg-transparent disabled:text-gray-600 disabled:opacity-60"
-            >
-              {sending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
-            </button>
-          </div>
+        <div className="flex items-end gap-2">
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={uploading}
@@ -482,6 +467,25 @@ export function ChatRoomPage() {
             {uploading
               ? <Loader2 size={18} className="text-gray-400 animate-spin" />
               : <Paperclip size={18} className="text-gray-400" />}
+          </button>
+          <div className="flex-1 flex items-end bg-white/6 border border-white/10 rounded-2xl px-4 py-2">
+            <textarea
+              ref={textareaRef}
+              value={inputText}
+              onChange={(e) => setInputText(e.target.value)}
+              placeholder="發送訊息......"
+              rows={1}
+              className="flex-1 resize-none bg-transparent py-1 text-sm text-white outline-none placeholder:text-gray-600 max-h-32 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={handleSend}
+            disabled={!inputText.trim() || sending}
+            aria-label="傳送訊息"
+            className="grid h-11 w-11 flex-shrink-0 place-items-center rounded-full bg-white text-black transition-all hover:opacity-90 disabled:bg-white/8 disabled:text-gray-600 disabled:opacity-60"
+          >
+            {sending ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
           </button>
         </div>
       </div>
