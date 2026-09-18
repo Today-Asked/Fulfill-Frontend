@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, Clock3, Download, ExternalLink, FileText, History, Inbox, Info as InfoIcon, MessageCircle, Paperclip, Send, Truck, X } from "lucide-react";
+import { CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock3, Download, FileText, Inbox, Info as InfoIcon, MessageCircle, Paperclip, Send, Truck, X } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router";
 import { useAuth } from "../../contexts/AuthContext";
 import {
@@ -49,35 +49,75 @@ const declineReasonLabel: Record<DeclineReason, string> = {
   other: "其他",
 };
 
+/** Rejected commissions have no chip of their own — they only surface under "全部". */
+const STATUS_FILTERS: { key: string; label: string; statuses: Commission["status"][] }[] = [
+  { key: "pending", label: "待回覆", statuses: ["pending"] },
+  { key: "in_progress", label: "進行中", statuses: ["accepted", "in_progress", "delivered"] },
+  { key: "completed", label: "已完成", statuses: ["completed"] },
+];
+
+/** Ties the received/sent tab to a consistent accent used across the tab pill, card border, and calendar. */
+const ROLE_THEME = {
+  received: {
+    tabActive: "bg-sky-500 text-white",
+    cardBorder: "border-l-sky-400/70",
+    icon: "text-sky-300",
+    tagSoft: "bg-sky-400/15 text-sky-200",
+    tagStrong: "bg-sky-400/25 text-sky-100",
+    ring: "border-sky-300/50 bg-sky-400/10",
+    dotSoft: "bg-sky-300",
+    dotStrong: "bg-sky-500",
+  },
+  sent: {
+    tabActive: "bg-indigo-500 text-white",
+    cardBorder: "border-l-indigo-400/70",
+    icon: "text-indigo-300",
+    tagSoft: "bg-indigo-400/15 text-indigo-200",
+    tagStrong: "bg-indigo-400/25 text-indigo-100",
+    ring: "border-indigo-300/50 bg-indigo-400/10",
+    dotSoft: "bg-indigo-300",
+    dotStrong: "bg-indigo-500",
+  },
+} as const;
+
 export function OrdersPage() {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [role, setRole] = useState<"received" | "sent">(() => searchParams.get("view") === "sent" ? "sent" : "received");
   const [items, setItems] = useState<Commission[]>([]);
-  const [calendarItems, setCalendarItems] = useState<Commission[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [busyId, setBusyId] = useState<number | null>(null);
   const [declining, setDeclining] = useState<Commission | null>(null);
   const [viewing, setViewing] = useState<Commission | null>(null);
-  const [showHistory, setShowHistory] = useState(false);
+  /** Empty set reads as "全部" — clicking a specific chip clears that implicit default. */
+  const [statusFilters, setStatusFilters] = useState<Set<string>>(new Set());
 
-  const activeItems = useMemo(() => items.filter((item) => item.status !== "completed"), [items]);
-  const historyItems = useMemo(() => items.filter((item) => item.status === "completed"), [items]);
+  const theme = ROLE_THEME[role];
+
+  const filteredItems = useMemo(() => {
+    if (statusFilters.size === 0) return items;
+    const allowed = new Set(STATUS_FILTERS.filter((f) => statusFilters.has(f.key)).flatMap((f) => f.statuses));
+    return items.filter((item) => allowed.has(item.status));
+  }, [items, statusFilters]);
+
+  function toggleStatusFilter(key: string) {
+    setStatusFilters((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
 
   async function reload() {
     if (!user) return;
     setLoading(true);
     setError("");
     try {
-      const [received, sent] = await Promise.all([
-        listCommissions("received", user.id),
-        listCommissions("sent", user.id),
-      ]);
-      const all = Array.from(new Map([...received, ...sent].map((item) => [item.id, item])).values());
-      setItems(role === "received" ? received : sent);
-      setCalendarItems(all);
+      const list = await listCommissions(role, user.id);
+      setItems(list);
     } catch (err) {
       setError(err instanceof Error ? err.message : "無法載入合作邀請。");
     } finally {
@@ -172,10 +212,13 @@ export function OrdersPage() {
     const canConfirmDraft = itemRole === "sent" && !!item.draftDeliveredAt && !item.draftConfirmedAt;
     const canConfirmFinal = itemRole === "sent" && !!item.finalDeliveredAt && !item.finalConfirmedAt;
     return (
-      <article id={`commission-${item.id}`} key={item.id} onClick={() => { if (!item.viewedAt && itemRole === 'received') void markCommissionViewed(item.id); }} className="scroll-mt-24 border border-white/10 bg-white/[0.035] p-5 lg:p-6">
+      <article id={`commission-${item.id}`} key={item.id} onClick={() => { if (!item.viewedAt && itemRole === 'received') void markCommissionViewed(item.id); }} className={`scroll-mt-24 border-y border-r border-white/10 border-l-4 ${theme.cardBorder} bg-white/[0.035] p-5 lg:p-6`}>
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="min-w-0">
-            <div className="mb-2 flex items-center gap-2 text-xs text-white/40"><Clock3 size={14} />{new Date(item.createdAt).toLocaleDateString('zh-TW')}</div>
+            <div className="mb-2 flex items-center gap-2 text-xs text-white/40">
+              {itemRole === 'received' ? <Inbox size={14} className={theme.icon} /> : <Send size={14} className={theme.icon} />}
+              <Clock3 size={14} />{new Date(item.createdAt).toLocaleDateString('zh-TW')}
+            </div>
             <h2 className="text-xl font-semibold text-white">{item.orgName}</h2>
             <p className="mt-1 text-sm text-white/50">{itemRole === 'received' ? `來自 ${item.clientName}` : item.artistUserId ? `邀請 ${item.artistName}` : '公開委託（尚未有人接下）'}</p>
           </div>
@@ -214,55 +257,66 @@ export function OrdersPage() {
   return (
     <div className="pt-6 lg:pt-10">
       <CommissionCalendar
-        commissions={calendarItems}
+        commissions={items}
+        role={role}
         onOpenCommission={(commission) => setViewing(commission)}
       />
 
-      <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
+      <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="mb-2 text-xs tracking-[0.18em] text-white/40">ORDERS</p>
           <h1 className="text-2xl font-semibold tracking-tight text-white">訂單</h1>
         </div>
         <div className="flex rounded-full border border-white/10 bg-white/5 p-1">
-          {([['received', '收到的'], ['sent', '送出的']] as const).map(([value, label]) => (
-            <button key={value} onClick={() => setRole(value)} className={`rounded-full px-4 py-2 text-sm transition-colors ${role === value ? 'bg-white text-black' : 'text-white/50 hover:text-white'}`}>{label}</button>
+          {(['received', 'sent'] as const).map((value) => (
+            <button
+              key={value}
+              onClick={() => setRole(value)}
+              className={`rounded-full px-4 py-2 text-sm font-medium transition-all duration-200 ${role === value ? ROLE_THEME[value].tabActive : 'text-white/40 hover:text-white/60'}`}
+            >
+              {value === 'received' ? '收到的' : '送出的'}
+            </button>
           ))}
         </div>
+      </div>
+
+      <div className="mb-8 flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => setStatusFilters(new Set())}
+          className={`rounded-full border px-3.5 py-1.5 text-xs font-medium transition-colors ${statusFilters.size === 0 ? 'border-white/70 bg-white text-black' : 'border-white/10 text-white/40 hover:border-white/25 hover:text-white/60'}`}
+        >
+          全部
+        </button>
+        {STATUS_FILTERS.map((filter) => {
+          const active = statusFilters.has(filter.key);
+          return (
+            <button
+              key={filter.key}
+              type="button"
+              onClick={() => toggleStatusFilter(filter.key)}
+              className={`rounded-full border px-3.5 py-1.5 text-xs font-medium transition-colors ${active ? 'border-white/70 bg-white text-black' : 'border-white/10 text-white/40 hover:border-white/25 hover:text-white/60'}`}
+            >
+              {filter.label}
+            </button>
+          );
+        })}
       </div>
 
       {error && <div role="alert" className="mb-5 border-l-2 border-red-400 bg-red-400/10 px-4 py-3 text-sm text-red-100">{error}</div>}
 
       {loading ? (
         <div className="grid gap-3"><Skeleton /><Skeleton /></div>
-      ) : activeItems.length === 0 ? (
+      ) : filteredItems.length === 0 ? (
         <div className="flex min-h-72 flex-col items-center justify-center border border-dashed border-white/15 bg-white/[0.02] px-6 text-center">
           {role === "received" ? <Inbox className="mb-4 text-white/25" /> : <Send className="mb-4 text-white/25" />}
-          <h2 className="font-medium text-white">目前沒有{role === "received" ? "收到" : "送出"}的訂單</h2>
-          <p className="mt-2 text-sm text-white/40">{role === "received" ? "收到的合作邀請與委託會顯示在這裡。" : "你送出的委託會顯示在這裡。"}</p>
-          {role === "sent" && <button onClick={() => navigate('/search')} className="mt-5 bg-white px-5 py-2.5 text-sm font-semibold text-black">搜尋創作者</button>}
+          <h2 className="font-medium text-white">{items.length === 0 ? `目前沒有${role === "received" ? "收到" : "送出"}的訂單` : "沒有符合篩選條件的訂單"}</h2>
+          <p className="mt-2 text-sm text-white/40">{items.length === 0 ? (role === "received" ? "收到的合作邀請與委託會顯示在這裡。" : "你送出的委託會顯示在這裡。") : "試著調整上方的狀態篩選。"}</p>
+          {role === "sent" && items.length === 0 && <button onClick={() => navigate('/search')} className="mt-5 bg-white px-5 py-2.5 text-sm font-semibold text-black">搜尋創作者</button>}
         </div>
       ) : (
         <div className="grid gap-3">
-          {activeItems.map((item) => renderCommissionCard(item))}
-        </div>
-      )}
-
-      {historyItems.length > 0 && (
-        <div className="mt-8">
-          <button
-            type="button"
-            onClick={() => setShowHistory((v) => !v)}
-            className="flex items-center gap-2 text-sm text-white/50 hover:text-white"
-          >
-            <History size={16} />
-            歷史訂單（{historyItems.length}）
-            <ChevronDown size={16} className={`transition-transform ${showHistory ? "rotate-180" : ""}`} />
-          </button>
-          {showHistory && (
-            <div className="mt-4 grid gap-3">
-              {historyItems.map((item) => renderCommissionCard(item))}
-            </div>
-          )}
+          {filteredItems.map((item) => renderCommissionCard(item))}
         </div>
       )}
 
@@ -295,7 +349,11 @@ interface DeadlineEvent {
   commission: Commission;
 }
 
-function CommissionCalendar({ commissions, onOpenCommission }: { commissions: Commission[]; onOpenCommission: (commission: Commission) => void }) {
+function startOfWeek(date: Date) { const d = new Date(date.getFullYear(), date.getMonth(), date.getDate()); d.setDate(d.getDate() - d.getDay()); return d; }
+function addDays(date: Date, amount: number) { const d = new Date(date); d.setDate(d.getDate() + amount); return d; }
+
+function CommissionCalendar({ commissions, role, onOpenCommission }: { commissions: Commission[]; role: "received" | "sent"; onOpenCommission: (commission: Commission) => void }) {
+  const theme = ROLE_THEME[role];
   const events = useMemo<DeadlineEvent[]>(() => commissions
     .filter((item) => item.status !== "rejected" && item.status !== "completed")
     .flatMap((item) => [
@@ -304,95 +362,131 @@ function CommissionCalendar({ commissions, onOpenCommission }: { commissions: Co
     ])
     .sort((a, b) => a.date.localeCompare(b.date)), [commissions]);
 
+  const [expanded, setExpanded] = useState(false);
   const [month, setMonth] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1));
+  const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date()));
   const [selectedDate, setSelectedDate] = useState("");
   const [initialized, setInitialized] = useState(false);
 
+  // Re-centers on the nearest upcoming event whenever the visible direction (收到/送出) changes.
+  useEffect(() => { setInitialized(false); }, [role]);
+
   useEffect(() => {
-    if (initialized || events.length === 0) return;
+    if (initialized) return;
+    if (events.length === 0) { setInitialized(true); return; }
     const today = localDateKey(new Date());
     const firstUpcoming = events.find((event) => event.date >= today) ?? events[0];
     const eventDate = parseLocalDate(firstUpcoming.date);
     setMonth(new Date(eventDate.getFullYear(), eventDate.getMonth(), 1));
+    setWeekStart(startOfWeek(eventDate));
     setSelectedDate(firstUpcoming.date);
     setInitialized(true);
   }, [events, initialized]);
+
+  // Keeps the month header in sync with whichever month owns most of the visible week.
+  useEffect(() => {
+    const dominant = addDays(weekStart, 3);
+    setMonth((prev) => (prev.getFullYear() === dominant.getFullYear() && prev.getMonth() === dominant.getMonth() ? prev : new Date(dominant.getFullYear(), dominant.getMonth(), 1)));
+  }, [weekStart]);
 
   const year = month.getFullYear();
   const monthIndex = month.getMonth();
   const offset = new Date(year, monthIndex, 1).getDay();
   const days = new Date(year, monthIndex + 1, 0).getDate();
   const cellCount = Math.ceil((offset + days) / 7) * 7;
-  const cells = Array.from({ length: cellCount }, (_, index) => {
+  const monthDates = Array.from({ length: cellCount }, (_, index) => {
     const day = index - offset + 1;
-    return day > 0 && day <= days ? day : null;
+    return day > 0 && day <= days ? new Date(year, monthIndex, day) : null;
   });
+  const weekDates = Array.from({ length: 7 }, (_, index) => addDays(weekStart, index));
   const selectedEvents = events.filter((event) => event.date === selectedDate);
 
+  function toggleExpanded() {
+    if (expanded) {
+      setWeekStart(startOfWeek(selectedDate ? parseLocalDate(selectedDate) : new Date(year, monthIndex, 1)));
+    }
+    setExpanded((v) => !v);
+  }
+
+  function renderDayCell(date: Date) {
+    const key = localDateKey(date);
+    const dayEvents = events.filter((event) => event.date === key);
+    const selected = key === selectedDate;
+    const today = key === localDateKey(new Date());
+    return (
+      <button key={key} type="button" onClick={() => setSelectedDate(key)} className={`flex min-h-11 flex-col items-center gap-0.5 overflow-hidden rounded-lg border py-1 transition-colors ${selected ? theme.ring : "border-transparent hover:bg-white/5"}`}>
+        <span className={`grid h-6 w-6 place-items-center rounded-full text-[11px] ${today ? "bg-white text-black" : "text-white/55"}`}>{date.getDate()}</span>
+        <span className="flex h-1.5 items-center justify-center gap-0.5">
+          {dayEvents.slice(0, 4).map((event) => <span key={event.id} className={`h-1.5 w-1.5 rounded-full ${event.kind === "draft" ? theme.dotSoft : theme.dotStrong}`} />)}
+        </span>
+      </button>
+    );
+  }
+
   return (
-    <section className="mb-8 overflow-hidden rounded-3xl border border-white/10 bg-white/[0.035]">
-      <div className="flex flex-wrap items-start justify-between gap-4 border-b border-white/8 px-5 py-5 lg:px-6">
-        <div>
-          <div className="flex items-center gap-2"><CalendarDays size={18} className="text-sky-300" /><h2 className="font-semibold text-white">委託行程</h2></div>
-          <p className="mt-1.5 text-xs leading-5 text-white/35">整合收到與送出的初稿、完稿與交件期限</p>
-        </div>
-        <button type="button" disabled={events.length === 0} onClick={() => downloadCalendar(events)} className="flex items-center gap-2 rounded-full border border-white/12 bg-white/5 px-3.5 py-2 text-xs text-white/65 hover:bg-white/10 disabled:opacity-30">
-          <Download size={14} />匯出 Google／TimeTree
+    <section className="mb-5 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.035]">
+      <div className="flex items-center justify-between gap-3 border-b border-white/8 px-4 py-3">
+        <div className="flex items-center gap-2"><CalendarDays size={16} className={theme.icon} /><h2 className="text-sm font-semibold text-white">委託行程</h2></div>
+        <button type="button" disabled={events.length === 0} onClick={() => downloadCalendar(events)} className="flex items-center gap-1.5 rounded-full border border-white/12 bg-white/5 px-3 py-1.5 text-xs text-white/65 hover:bg-white/10 disabled:opacity-30">
+          <Download size={13} />匯出
         </button>
       </div>
 
-      <div className="grid lg:grid-cols-[1.45fr_0.75fr]">
-        <div className="border-b border-white/8 p-4 sm:p-5 lg:border-b-0 lg:border-r">
-          <div className="mb-4 flex items-center justify-between">
-            <button type="button" onClick={() => setMonth(new Date(year, monthIndex - 1, 1))} aria-label="上個月" className="grid h-9 w-9 place-items-center rounded-full text-white/50 hover:bg-white/8 hover:text-white"><ChevronLeft size={18} /></button>
-            <strong className="text-sm font-medium text-white">{year} 年 {monthIndex + 1} 月</strong>
-            <button type="button" onClick={() => setMonth(new Date(year, monthIndex + 1, 1))} aria-label="下個月" className="grid h-9 w-9 place-items-center rounded-full text-white/50 hover:bg-white/8 hover:text-white"><ChevronRight size={18} /></button>
-          </div>
+      <div className="p-3">
+        <button type="button" onClick={toggleExpanded} className="mb-2 flex items-center gap-1 text-xs text-white/45 hover:text-white">
+          {expanded ? <><ChevronUp size={14} />收合為本週</> : <><ChevronDown size={14} />查看完整月曆</>}
+        </button>
 
-          <div className="grid grid-cols-7 text-center text-[10px] text-white/25">
-            {['日', '一', '二', '三', '四', '五', '六'].map((day) => <span key={day} className="pb-2">{day}</span>)}
-          </div>
-          <div className="grid grid-cols-7 gap-1">
-            {cells.map((day, index) => {
-              if (day == null) return <span key={`blank-${index}`} className="min-h-14 sm:min-h-20" />;
-              const key = localDateKey(new Date(year, monthIndex, day));
-              const dayEvents = events.filter((event) => event.date === key);
-              const selected = key === selectedDate;
-              const today = key === localDateKey(new Date());
-              return (
-                <button key={key} type="button" onClick={() => setSelectedDate(key)} className={`min-h-14 overflow-hidden rounded-xl border p-1.5 text-left transition-colors sm:min-h-20 ${selected ? "border-sky-300/50 bg-sky-400/10" : "border-transparent hover:bg-white/5"}`}>
-                  <span className={`grid h-6 w-6 place-items-center rounded-full text-[11px] ${today ? "bg-white text-black" : "text-white/55"}`}>{day}</span>
-                  <span className="mt-1 grid gap-1">
-                    {dayEvents.slice(0, 2).map((event) => <span key={event.id} className={`block truncate rounded px-1 py-0.5 text-[8px] sm:text-[9px] ${event.kind === "draft" ? "bg-sky-400/15 text-sky-200" : "bg-amber-300/15 text-amber-100"}`}>{event.commission.orgName}</span>)}
-                    {dayEvents.length > 2 && <span className="text-[8px] text-white/30">+{dayEvents.length - 2}</span>}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
+        <div className="mb-2 flex items-center justify-between">
+          <button
+            type="button"
+            onClick={() => (expanded ? setMonth(new Date(year, monthIndex - 1, 1)) : setWeekStart(addDays(weekStart, -7)))}
+            aria-label={expanded ? "上個月" : "上一週"}
+            className="grid h-7 w-7 place-items-center rounded-full text-white/50 hover:bg-white/8 hover:text-white"
+          ><ChevronLeft size={16} /></button>
+          <strong className="text-xs font-medium text-white">{year} 年 {monthIndex + 1} 月</strong>
+          <button
+            type="button"
+            onClick={() => (expanded ? setMonth(new Date(year, monthIndex + 1, 1)) : setWeekStart(addDays(weekStart, 7)))}
+            aria-label={expanded ? "下個月" : "下一週"}
+            className="grid h-7 w-7 place-items-center rounded-full text-white/50 hover:bg-white/8 hover:text-white"
+          ><ChevronRight size={16} /></button>
         </div>
 
-        <aside className="p-5">
-          <h3 className="text-sm font-medium text-white">{selectedDate ? formatCalendarDate(selectedDate) : "選擇日期"}</h3>
+        <div className="grid grid-cols-7 text-center text-[10px] text-white/25">
+          {['日', '一', '二', '三', '四', '五', '六'].map((day) => <span key={day} className="pb-1">{day}</span>)}
+        </div>
+        {expanded ? (
+          <div className="grid grid-cols-7 gap-0.5">
+            {monthDates.map((date, index) => date == null ? <span key={`blank-${index}`} className="min-h-11" /> : renderDayCell(date))}
+          </div>
+        ) : (
+          <div className="grid grid-cols-7 gap-0.5">
+            {weekDates.map((date) => renderDayCell(date))}
+          </div>
+        )}
+
+        <div className="mt-2 border-t border-white/8 pt-2">
+          <h3 className="mb-1 text-xs font-medium text-white/50">{selectedDate ? formatCalendarDate(selectedDate) : "選擇日期"}</h3>
           {selectedEvents.length === 0 ? (
-            <div className="grid min-h-36 place-items-center text-center"><p className="text-xs leading-5 text-white/30">這天沒有委託行程<br />點選有標記的日期查看</p></div>
+            <p className="py-2 text-xs text-white/30">這天沒有委託行程</p>
           ) : (
-            <div className="mt-4 grid gap-3">
+            <div className="grid">
               {selectedEvents.map((event) => (
-                <div key={event.id} className="rounded-2xl border border-white/10 bg-black/20 p-3.5">
-                  <div className="flex items-center justify-between gap-2"><span className={`rounded-full px-2 py-1 text-[10px] ${event.kind === "draft" ? "bg-sky-400/15 text-sky-200" : "bg-amber-300/15 text-amber-100"}`}>{event.label}</span><span className="text-[10px] text-white/25">{statusLabel[event.commission.status]}</span></div>
-                  <p className="mt-3 text-sm font-medium text-white">{event.commission.orgName}</p>
-                  <p className="mt-1 truncate text-xs text-white/35">{event.commission.services.join('、')}</p>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <button type="button" onClick={() => onOpenCommission(event.commission)} className="rounded-full bg-white/8 px-3 py-1.5 text-[11px] text-white/65 hover:bg-white/12">查看訂單</button>
-                    <button type="button" onClick={() => openGoogleCalendar(event)} className="flex items-center gap-1 rounded-full border border-white/10 px-3 py-1.5 text-[11px] text-white/50 hover:text-white"><ExternalLink size={11} />Google Calendar</button>
-                  </div>
-                </div>
+                <button
+                  key={event.id}
+                  type="button"
+                  onClick={() => onOpenCommission(event.commission)}
+                  className="flex w-full items-center gap-2 rounded-lg px-1.5 py-1.5 text-left hover:bg-white/5"
+                >
+                  <span className={`shrink-0 rounded px-1 py-0.5 text-[10px] font-medium ${event.kind === "draft" ? theme.tagSoft : theme.tagStrong}`}>{event.kind === "draft" ? "初稿" : "完稿"}</span>
+                  <span className="min-w-0 flex-1 truncate text-xs text-white/80">{event.commission.orgName}</span>
+                  <span className="shrink-0 text-xs text-white/30">{statusLabel[event.commission.status]}</span>
+                </button>
               ))}
             </div>
           )}
-          <p className="mt-5 text-[10px] leading-4 text-white/25">TimeTree 可匯入手機原生日曆；若日期變更，需重新匯出更新。</p>
-        </aside>
+        </div>
       </div>
     </section>
   );
@@ -404,16 +498,6 @@ function formatCalendarDate(value: string) { return parseLocalDate(value).toLoca
 function nextDate(value: string) { const date = parseLocalDate(value); date.setDate(date.getDate() + 1); return localDateKey(date); }
 function compactDate(value: string) { return value.replaceAll('-', ''); }
 function escapeIcs(value: string) { return value.replaceAll('\\', '\\\\').replaceAll('\n', '\\n').replaceAll(',', '\\,').replaceAll(';', '\\;'); }
-
-function openGoogleCalendar(event: DeadlineEvent) {
-  const params = new URLSearchParams({
-    action: 'TEMPLATE',
-    text: `${event.commission.orgName}｜${event.label}`,
-    dates: `${compactDate(event.date)}/${compactDate(nextDate(event.date))}`,
-    details: `委託服務：${event.commission.services.join('、')}\n狀態：${statusLabel[event.commission.status]}`,
-  });
-  window.open(`https://calendar.google.com/calendar/render?${params.toString()}`, '_blank', 'noopener,noreferrer');
-}
 
 function downloadCalendar(events: DeadlineEvent[]) {
   const body = events.map((event) => [
