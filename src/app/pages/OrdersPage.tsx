@@ -4,6 +4,8 @@ import { useNavigate, useSearchParams } from "react-router";
 import { useAuth } from "../../contexts/AuthContext";
 import {
   acceptCommission,
+  confirmDraft,
+  confirmFinal,
   declineCommission,
   listCommissions,
   markCommissionViewed,
@@ -104,10 +106,11 @@ export function OrdersPage() {
   }
 
   async function deliverDraft(item: Commission) {
+    if (!user) return;
     setBusyId(item.id);
     setError("");
     try {
-      await markDraftDelivered(item.id);
+      await markDraftDelivered(item, user.id);
       await reload();
       setViewing((prev) => (prev && prev.id === item.id ? { ...prev, draftDeliveredAt: new Date().toISOString(), status: "in_progress" } : prev));
     } catch (err) {
@@ -118,10 +121,11 @@ export function OrdersPage() {
   }
 
   async function deliverFinal(item: Commission) {
+    if (!user) return;
     setBusyId(item.id);
     setError("");
     try {
-      await markFinalDelivered(item.id);
+      await markFinalDelivered(item, user.id);
       await reload();
       setViewing((prev) => (prev && prev.id === item.id ? { ...prev, finalDeliveredAt: new Date().toISOString(), status: "delivered" } : prev));
     } catch (err) {
@@ -131,10 +135,42 @@ export function OrdersPage() {
     }
   }
 
+  async function confirmDraftOrder(item: Commission) {
+    if (!user) return;
+    setBusyId(item.id);
+    setError("");
+    try {
+      await confirmDraft(item, user.id);
+      await reload();
+      setViewing((prev) => (prev && prev.id === item.id ? { ...prev, draftConfirmedAt: new Date().toISOString() } : prev));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "確認初稿失敗。");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function confirmFinalOrder(item: Commission) {
+    if (!user) return;
+    setBusyId(item.id);
+    setError("");
+    try {
+      await confirmFinal(item, user.id);
+      await reload();
+      setViewing((prev) => (prev && prev.id === item.id ? { ...prev, finalConfirmedAt: new Date().toISOString(), status: "completed" } : prev));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "確認完稿失敗。");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   function renderCommissionCard(item: Commission) {
     const itemRole = role;
     const canDeliverDraft = itemRole === "received" && (item.status === "accepted" || item.status === "in_progress") && !item.draftDeliveredAt;
     const canDeliverFinal = itemRole === "received" && !!item.draftConfirmedAt && !item.finalDeliveredAt;
+    const canConfirmDraft = itemRole === "sent" && !!item.draftDeliveredAt && !item.draftConfirmedAt;
+    const canConfirmFinal = itemRole === "sent" && !!item.finalDeliveredAt && !item.finalConfirmedAt;
     return (
       <article id={`commission-${item.id}`} key={item.id} onClick={() => { if (!item.viewedAt && itemRole === 'received') void markCommissionViewed(item.id); }} className="scroll-mt-24 border border-white/10 bg-white/[0.035] p-5 lg:p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
@@ -166,6 +202,8 @@ export function OrdersPage() {
           </>}
           {canDeliverDraft && <button disabled={busyId === item.id} onClick={() => void deliverDraft(item)} className="flex items-center gap-2 border border-white/15 px-4 py-2.5 text-sm text-white/70 hover:border-white/30 disabled:opacity-40"><Truck size={16} />標記初稿已交付</button>}
           {canDeliverFinal && <button disabled={busyId === item.id} onClick={() => void deliverFinal(item)} className="flex items-center gap-2 border border-white/15 px-4 py-2.5 text-sm text-white/70 hover:border-white/30 disabled:opacity-40"><Truck size={16} />標記完稿已交付</button>}
+          {canConfirmDraft && <button disabled={busyId === item.id} onClick={() => void confirmDraftOrder(item)} className="flex items-center gap-2 bg-white px-4 py-2.5 text-sm font-semibold text-black disabled:opacity-40"><Check size={16} />確認初稿完成</button>}
+          {canConfirmFinal && <button disabled={busyId === item.id} onClick={() => void confirmFinalOrder(item)} className="flex items-center gap-2 bg-white px-4 py-2.5 text-sm font-semibold text-black disabled:opacity-40"><Check size={16} />確認完稿・結案</button>}
           {item.chatId && <button onClick={() => navigate(`/chat/${item.chatId}`)} className="flex items-center gap-2 border border-white/15 px-4 py-2.5 text-sm text-white/70"><MessageCircle size={16} />開啟對話</button>}
           <button onClick={(e) => { e.stopPropagation(); setViewing(item); }} className="flex items-center gap-2 border border-white/15 px-4 py-2.5 text-sm text-white/70 hover:border-white/30"><InfoIcon size={16} />查看完整詳情</button>
         </div>
@@ -241,6 +279,8 @@ export function OrdersPage() {
           onOpenChat={() => navigate(`/chat/${viewing.chatId}`)}
           onDeliverDraft={() => void deliverDraft(viewing)}
           onDeliverFinal={() => void deliverFinal(viewing)}
+          onConfirmDraft={() => void confirmDraftOrder(viewing)}
+          onConfirmFinal={() => void confirmFinalOrder(viewing)}
         />
       )}
     </div>
@@ -455,6 +495,8 @@ function CommissionDetailModal({
   onOpenChat,
   onDeliverDraft,
   onDeliverFinal,
+  onConfirmDraft,
+  onConfirmFinal,
 }: {
   item: Commission;
   myUserId: string | null;
@@ -465,10 +507,14 @@ function CommissionDetailModal({
   onOpenChat: () => void;
   onDeliverDraft: () => void;
   onDeliverFinal: () => void;
+  onConfirmDraft: () => void;
+  onConfirmFinal: () => void;
 }) {
   const iAmClient = item.clientId === myUserId;
   const canDeliverDraft = !iAmClient && (item.status === "accepted" || item.status === "in_progress") && !item.draftDeliveredAt;
   const canDeliverFinal = !iAmClient && !!item.draftConfirmedAt && !item.finalDeliveredAt;
+  const canConfirmDraft = iAmClient && !!item.draftDeliveredAt && !item.draftConfirmedAt;
+  const canConfirmFinal = iAmClient && !!item.finalDeliveredAt && !item.finalConfirmedAt;
   const counterpartLabel = iAmClient
     ? (item.artistUserId ? `邀請 ${item.artistName}` : "公開委託（尚未有人接下）")
     : `來自 ${item.clientName}`;
@@ -540,6 +586,8 @@ function CommissionDetailModal({
           </>}
           {canDeliverDraft && <button disabled={busy} onClick={onDeliverDraft} className="flex items-center gap-2 border border-white/15 px-4 py-2.5 text-sm text-white/70 hover:border-white/30 disabled:opacity-40"><Truck size={16} />標記初稿已交付</button>}
           {canDeliverFinal && <button disabled={busy} onClick={onDeliverFinal} className="flex items-center gap-2 border border-white/15 px-4 py-2.5 text-sm text-white/70 hover:border-white/30 disabled:opacity-40"><Truck size={16} />標記完稿已交付</button>}
+          {canConfirmDraft && <button disabled={busy} onClick={onConfirmDraft} className="flex items-center gap-2 bg-white px-4 py-2.5 text-sm font-semibold text-black disabled:opacity-40"><Check size={16} />確認初稿完成</button>}
+          {canConfirmFinal && <button disabled={busy} onClick={onConfirmFinal} className="flex items-center gap-2 bg-white px-4 py-2.5 text-sm font-semibold text-black disabled:opacity-40"><Check size={16} />確認完稿・結案</button>}
           {item.chatId && <button onClick={onOpenChat} className="flex items-center gap-2 border border-white/15 px-4 py-2.5 text-sm text-white/70"><MessageCircle size={16} />開啟對話</button>}
         </div>
       </div>
