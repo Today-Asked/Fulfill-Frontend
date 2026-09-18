@@ -77,6 +77,15 @@ export function ChatRoomPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: "auto", block: "end" });
   }, [messages]);
 
+  // 輸入框隨行數長高，直到碰到上限再捲動
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 128)}px`;
+  }, [inputText]);
+
+  // 載入對話資訊 + 最新 50 則訊息
   useEffect(() => {
     const el = textareaRef.current;
     if (!el) return;
