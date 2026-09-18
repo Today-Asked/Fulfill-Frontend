@@ -75,6 +75,10 @@ export interface Commission {
   replyNote: string | null;
   viewedAt: string | null;
   createdAt: string;
+  draftDeliveredAt: string | null;
+  draftConfirmedAt: string | null;
+  finalDeliveredAt: string | null;
+  finalConfirmedAt: string | null;
 }
 
 /** Nested selects keep this to a single round trip. */
@@ -82,6 +86,7 @@ const SELECT = `
   id, chat_id, client_id, artist_id, title, description, org_name, services,
   budget_min, budget_max, draft_due_date, final_due_date, contact, has_assets,
   reference_urls, status, decline_reason, reply_note, viewed_at, created_at,
+  draft_delivered_at, draft_confirmed_at, final_delivered_at, final_confirmed_at,
   client:users!commission_requests_client_id_fkey ( id, name, username, avatar_url ),
   artist:artist_profiles!commission_requests_artist_id_fkey (
     id, user_id, users!artist_profiles_user_id_fkey ( id, name, username, avatar_url )
@@ -114,6 +119,10 @@ function toCommission(row: any): Commission {
     replyNote: row.reply_note,
     viewedAt: row.viewed_at,
     createdAt: row.created_at,
+    draftDeliveredAt: row.draft_delivered_at,
+    draftConfirmedAt: row.draft_confirmed_at,
+    finalDeliveredAt: row.final_delivered_at,
+    finalConfirmedAt: row.final_confirmed_at,
   };
 }
 
@@ -215,14 +224,21 @@ export async function getCommission(commissionId: number): Promise<Commission | 
   return data ? toCommission(data) : null;
 }
 
-/** Active commissions attached to one conversation, shown inside the chat. */
+/**
+ * Every commission that ever got a thread in this conversation — one tab
+ * each in ChatRoomPage's commission switcher. Includes 'completed' on
+ * purpose: a finished commission keeps its tab (shown muted) so its history
+ * stays reachable instead of disappearing. 'rejected' never appears here —
+ * a commission only gets a chat_id (and therefore a thread) once accepted,
+ * and decline only ever applies to still-pending ones.
+ */
 export async function listConversationCommissions(chatId: number): Promise<Commission[]> {
   const { data, error } = await supabase
     .from("commission_requests")
     .select(SELECT)
     .eq("chat_id", chatId)
-    .in("status", ["accepted", "in_progress", "delivered"])
-    .order("created_at", { ascending: false });
+    .in("status", ["accepted", "in_progress", "delivered", "completed"])
+    .order("created_at", { ascending: true });
   if (error) throw error;
   return (data ?? []).map(toCommission);
 }
@@ -340,6 +356,98 @@ export async function declineCommission(
     .maybeSingle();
   if (error) throw error;
   if (!data) throw new Error("這筆邀請已處理，請重新整理。");
+}
+
+/* ------------------------------------------------------------------ *
+ * Progress tracking — draft/final delivery (creator) and confirmation
+ * (client). Both directions are reachable from the Orders page and the
+ * chat room's commission panel, and both post a system message so the
+ * thread always reflects the milestone regardless of where it happened.
+ * ------------------------------------------------------------------ */
+
+export async function markDraftDelivered(commission: Commission, myUserId: string): Promise<PostedMessage | null> {
+  const { data, error } = await supabase
+    .from("commission_requests")
+    .update({ draft_delivered_at: new Date().toISOString(), status: "in_progress", updated_at: new Date().toISOString() })
+    .eq("id", commission.id)
+    .is("draft_delivered_at", null)
+    .select("id")
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) throw new Error("初稿已經標記交付過了，請重新整理。");
+
+  return postMilestoneMessage(commission, myUserId, `「${commission.orgName}」的初稿已交付，看沒問題的話記得按「確認初稿完成」。`);
+}
+
+export async function markFinalDelivered(commission: Commission, myUserId: string): Promise<PostedMessage | null> {
+  const { data, error } = await supabase
+    .from("commission_requests")
+    .update({ final_delivered_at: new Date().toISOString(), status: "delivered", updated_at: new Date().toISOString() })
+    .eq("id", commission.id)
+    .is("final_delivered_at", null)
+    .select("id")
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) throw new Error("完稿已經標記交付過了，請重新整理。");
+
+  return postMilestoneMessage(commission, myUserId, `「${commission.orgName}」的完稿已交付，看沒問題的話記得按「確認完稿・結案」。`);
+}
+
+/** Matches the shape ChatRoomPage's local DbMessage expects, so it can append the row without waiting on realtime (which skips self-sent messages). */
+export interface PostedMessage {
+  id: number;
+  chat_id: number;
+  sender_id: string;
+  type: string;
+  content: { text?: string; commission_id?: number; kind?: string } | null;
+  created_at: string;
+  commission_id: number | null;
+}
+
+async function postMilestoneMessage(commission: Commission, myUserId: string, text: string): Promise<PostedMessage | null> {
+  if (!commission.chatId) return null;
+  const { data, error } = await supabase
+    .from("messages")
+    .insert({
+      chat_id: commission.chatId,
+      sender_id: myUserId,
+      type: "commission",
+      content: { commission_id: commission.id, kind: "milestone", text },
+      commission_id: commission.id,
+    })
+    .select("id, chat_id, sender_id, type, content, created_at, commission_id")
+    .single();
+  if (error) throw error;
+  await supabase.from("conversations").update({ last_message_at: data.created_at }).eq("id", commission.chatId);
+  return data;
+}
+
+export async function confirmDraft(commission: Commission, myUserId: string): Promise<PostedMessage | null> {
+  const { data, error } = await supabase
+    .from("commission_requests")
+    .update({ draft_confirmed_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+    .eq("id", commission.id)
+    .is("draft_confirmed_at", null)
+    .select("id")
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) throw new Error("初稿已經確認過了，請重新整理。");
+
+  return postMilestoneMessage(commission, myUserId, `「${commission.orgName}」的初稿已確認，辛苦了！`);
+}
+
+export async function confirmFinal(commission: Commission, myUserId: string): Promise<PostedMessage | null> {
+  const { data, error } = await supabase
+    .from("commission_requests")
+    .update({ final_confirmed_at: new Date().toISOString(), status: "completed", updated_at: new Date().toISOString() })
+    .eq("id", commission.id)
+    .is("final_confirmed_at", null)
+    .select("id")
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) throw new Error("這筆委託已經完成過了，請重新整理。");
+
+  return postMilestoneMessage(commission, myUserId, `「${commission.orgName}」已完成交件，感謝這次合作！`);
 }
 
 export async function getMyArtistProfileId(userId: string): Promise<number | null> {

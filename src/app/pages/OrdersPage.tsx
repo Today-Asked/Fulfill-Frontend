@@ -1,15 +1,36 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { CalendarDays, Check, ChevronLeft, ChevronRight, Clock3, Download, ExternalLink, FileText, Inbox, Info as InfoIcon, MessageCircle, Paperclip, Send, X } from "lucide-react";
+import { CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, Clock3, Download, ExternalLink, FileText, History, Inbox, Info as InfoIcon, MessageCircle, Paperclip, Send, Truck, X } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router";
 import { useAuth } from "../../contexts/AuthContext";
 import {
   acceptCommission,
+  confirmDraft,
+  confirmFinal,
   declineCommission,
   listCommissions,
   markCommissionViewed,
+  markDraftDelivered,
+  markFinalDelivered,
   type Commission,
   type DeclineReason,
 } from "../../lib/commissions";
+
+interface ProgressStep {
+  key: string;
+  label: string;
+  done: boolean;
+}
+
+/** Only meaningful once a commission has actually started — pending/rejected never reach here. */
+function buildProgressSteps(item: Commission): ProgressStep[] {
+  return [
+    { key: "accepted", label: "已接單", done: true },
+    { key: "draft_delivered", label: "初稿交付", done: !!item.draftDeliveredAt },
+    { key: "draft_confirmed", label: "初稿確認", done: !!item.draftConfirmedAt },
+    { key: "final_delivered", label: "完稿交付", done: !!item.finalDeliveredAt },
+    { key: "final_confirmed", label: "完稿確認", done: !!item.finalConfirmedAt },
+  ];
+}
 
 const statusLabel: Record<Commission["status"], string> = {
   pending: "待回覆",
@@ -40,6 +61,10 @@ export function OrdersPage() {
   const [busyId, setBusyId] = useState<number | null>(null);
   const [declining, setDeclining] = useState<Commission | null>(null);
   const [viewing, setViewing] = useState<Commission | null>(null);
+  const [showHistory, setShowHistory] = useState(false);
+
+  const activeItems = useMemo(() => items.filter((item) => item.status !== "completed"), [items]);
+  const historyItems = useMemo(() => items.filter((item) => item.status === "completed"), [items]);
 
   async function reload() {
     if (!user) return;
@@ -80,6 +105,112 @@ export function OrdersPage() {
     }
   }
 
+  async function deliverDraft(item: Commission) {
+    if (!user) return;
+    setBusyId(item.id);
+    setError("");
+    try {
+      await markDraftDelivered(item, user.id);
+      await reload();
+      setViewing((prev) => (prev && prev.id === item.id ? { ...prev, draftDeliveredAt: new Date().toISOString(), status: "in_progress" } : prev));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "標記初稿交付失敗。");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function deliverFinal(item: Commission) {
+    if (!user) return;
+    setBusyId(item.id);
+    setError("");
+    try {
+      await markFinalDelivered(item, user.id);
+      await reload();
+      setViewing((prev) => (prev && prev.id === item.id ? { ...prev, finalDeliveredAt: new Date().toISOString(), status: "delivered" } : prev));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "標記完稿交付失敗。");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function confirmDraftOrder(item: Commission) {
+    if (!user) return;
+    setBusyId(item.id);
+    setError("");
+    try {
+      await confirmDraft(item, user.id);
+      await reload();
+      setViewing((prev) => (prev && prev.id === item.id ? { ...prev, draftConfirmedAt: new Date().toISOString() } : prev));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "確認初稿失敗。");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function confirmFinalOrder(item: Commission) {
+    if (!user) return;
+    setBusyId(item.id);
+    setError("");
+    try {
+      await confirmFinal(item, user.id);
+      await reload();
+      setViewing((prev) => (prev && prev.id === item.id ? { ...prev, finalConfirmedAt: new Date().toISOString(), status: "completed" } : prev));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "確認完稿失敗。");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  function renderCommissionCard(item: Commission) {
+    const itemRole = role;
+    const canDeliverDraft = itemRole === "received" && (item.status === "accepted" || item.status === "in_progress") && !item.draftDeliveredAt;
+    const canDeliverFinal = itemRole === "received" && !!item.draftConfirmedAt && !item.finalDeliveredAt;
+    const canConfirmDraft = itemRole === "sent" && !!item.draftDeliveredAt && !item.draftConfirmedAt;
+    const canConfirmFinal = itemRole === "sent" && !!item.finalDeliveredAt && !item.finalConfirmedAt;
+    return (
+      <article id={`commission-${item.id}`} key={item.id} onClick={() => { if (!item.viewedAt && itemRole === 'received') void markCommissionViewed(item.id); }} className="scroll-mt-24 border border-white/10 bg-white/[0.035] p-5 lg:p-6">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="min-w-0">
+            <div className="mb-2 flex items-center gap-2 text-xs text-white/40"><Clock3 size={14} />{new Date(item.createdAt).toLocaleDateString('zh-TW')}</div>
+            <h2 className="text-xl font-semibold text-white">{item.orgName}</h2>
+            <p className="mt-1 text-sm text-white/50">{itemRole === 'received' ? `來自 ${item.clientName}` : item.artistUserId ? `邀請 ${item.artistName}` : '公開委託（尚未有人接下）'}</p>
+          </div>
+          <span className={`border px-3 py-1 text-xs ${item.status === 'pending' ? 'border-amber-300/30 text-amber-200' : item.status === 'rejected' ? 'border-white/10 text-white/35' : 'border-emerald-300/30 text-emerald-200'}`}>{statusLabel[item.status]}</span>
+        </div>
+        <p className="mt-5 whitespace-pre-wrap text-sm leading-6 text-white/70">{item.description}</p>
+        <dl className="mt-5 grid gap-3 border-t border-white/8 pt-4 text-sm sm:grid-cols-3">
+          <Info label="服務" value={item.services.join('、') || '未填寫'} />
+          <Info label="預算" value={formatBudget(item)} />
+          <Info label="交件" value={item.finalDueDate ? new Date(item.finalDueDate).toLocaleDateString('zh-TW') : '未指定'} />
+        </dl>
+        {item.status !== 'pending' && item.status !== 'rejected' && <ProgressLine item={item} />}
+        {item.status === 'rejected' && item.declineReason && (
+          <div className="mt-4 border-l-2 border-white/10 pl-4">
+            <p className="text-xs text-white/35">{itemRole === 'sent' ? '對方婉拒原因' : '你婉拒的原因'}</p>
+            <p className="mt-1 text-sm text-white/70">{declineReasonLabel[item.declineReason]}</p>
+            {item.replyNote && <p className="mt-1 whitespace-pre-wrap text-sm text-white/50">{item.replyNote}</p>}
+          </div>
+        )}
+        <div className="mt-5 flex flex-wrap gap-2">
+          {itemRole === 'received' && item.status === 'pending' && <>
+            <button disabled={busyId === item.id} onClick={() => void accept(item)} className="flex items-center gap-2 bg-white px-4 py-2.5 text-sm font-semibold text-black disabled:opacity-40"><Check size={16} />接受並開始對話</button>
+            <button onClick={() => setDeclining(item)} className="flex items-center gap-2 border border-white/15 px-4 py-2.5 text-sm text-white/70 hover:border-white/30"><X size={16} />婉拒</button>
+          </>}
+          {canDeliverDraft && <button disabled={busyId === item.id} onClick={() => void deliverDraft(item)} className="flex items-center gap-2 border border-white/15 px-4 py-2.5 text-sm text-white/70 hover:border-white/30 disabled:opacity-40"><Truck size={16} />標記初稿已交付</button>}
+          {canDeliverFinal && <button disabled={busyId === item.id} onClick={() => void deliverFinal(item)} className="flex items-center gap-2 border border-white/15 px-4 py-2.5 text-sm text-white/70 hover:border-white/30 disabled:opacity-40"><Truck size={16} />標記完稿已交付</button>}
+          {canConfirmDraft && <button disabled={busyId === item.id} onClick={() => void confirmDraftOrder(item)} className="flex items-center gap-2 bg-white px-4 py-2.5 text-sm font-semibold text-black disabled:opacity-40"><Check size={16} />確認初稿完成</button>}
+          {canConfirmFinal && <button disabled={busyId === item.id} onClick={() => void confirmFinalOrder(item)} className="flex items-center gap-2 bg-white px-4 py-2.5 text-sm font-semibold text-black disabled:opacity-40"><Check size={16} />確認完稿・結案</button>}
+          {item.chatId && <button onClick={() => navigate(`/chat/${item.chatId}`)} className="flex items-center gap-2 border border-white/15 px-4 py-2.5 text-sm text-white/70"><MessageCircle size={16} />開啟對話</button>}
+          <button onClick={(e) => { e.stopPropagation(); setViewing(item); }} className="flex items-center gap-2 border border-white/15 px-4 py-2.5 text-sm text-white/70 hover:border-white/30"><InfoIcon size={16} />查看完整詳情</button>
+        </div>
+      </article>
+    );
+  }
+
   return (
     <div className="pt-6 lg:pt-10">
       <CommissionCalendar
@@ -103,7 +234,7 @@ export function OrdersPage() {
 
       {loading ? (
         <div className="grid gap-3"><Skeleton /><Skeleton /></div>
-      ) : items.length === 0 ? (
+      ) : activeItems.length === 0 ? (
         <div className="flex min-h-72 flex-col items-center justify-center border border-dashed border-white/15 bg-white/[0.02] px-6 text-center">
           {role === "received" ? <Inbox className="mb-4 text-white/25" /> : <Send className="mb-4 text-white/25" />}
           <h2 className="font-medium text-white">目前沒有{role === "received" ? "收到" : "送出"}的訂單</h2>
@@ -112,41 +243,26 @@ export function OrdersPage() {
         </div>
       ) : (
         <div className="grid gap-3">
-          {items.map((item) => {
-            const itemRole = role;
-            return (
-            <article id={`commission-${item.id}`} key={item.id} onClick={() => { if (!item.viewedAt && itemRole === 'received') void markCommissionViewed(item.id); }} className="scroll-mt-24 border border-white/10 bg-white/[0.035] p-5 lg:p-6">
-              <div className="flex flex-wrap items-start justify-between gap-4">
-                <div className="min-w-0">
-                  <div className="mb-2 flex items-center gap-2 text-xs text-white/40"><Clock3 size={14} />{new Date(item.createdAt).toLocaleDateString('zh-TW')}</div>
-                  <h2 className="text-xl font-semibold text-white">{item.orgName}</h2>
-                  <p className="mt-1 text-sm text-white/50">{itemRole === 'received' ? `來自 ${item.clientName}` : item.artistUserId ? `邀請 ${item.artistName}` : '公開委託（尚未有人接下）'}</p>
-                </div>
-                <span className={`border px-3 py-1 text-xs ${item.status === 'pending' ? 'border-amber-300/30 text-amber-200' : item.status === 'rejected' ? 'border-white/10 text-white/35' : 'border-emerald-300/30 text-emerald-200'}`}>{statusLabel[item.status]}</span>
-              </div>
-              <p className="mt-5 whitespace-pre-wrap text-sm leading-6 text-white/70">{item.description}</p>
-              <dl className="mt-5 grid gap-3 border-t border-white/8 pt-4 text-sm sm:grid-cols-3">
-                <Info label="服務" value={item.services.join('、') || '未填寫'} />
-                <Info label="預算" value={formatBudget(item)} />
-                <Info label="交件" value={item.finalDueDate ? new Date(item.finalDueDate).toLocaleDateString('zh-TW') : '未指定'} />
-              </dl>
-              {item.status === 'rejected' && item.declineReason && (
-                <div className="mt-4 border-l-2 border-white/10 pl-4">
-                  <p className="text-xs text-white/35">{itemRole === 'sent' ? '對方婉拒原因' : '你婉拒的原因'}</p>
-                  <p className="mt-1 text-sm text-white/70">{declineReasonLabel[item.declineReason]}</p>
-                  {item.replyNote && <p className="mt-1 whitespace-pre-wrap text-sm text-white/50">{item.replyNote}</p>}
-                </div>
-              )}
-              <div className="mt-5 flex flex-wrap gap-2">
-                {itemRole === 'received' && item.status === 'pending' && <>
-                  <button disabled={busyId === item.id} onClick={() => void accept(item)} className="flex items-center gap-2 bg-white px-4 py-2.5 text-sm font-semibold text-black disabled:opacity-40"><Check size={16} />接受並開始對話</button>
-                  <button onClick={() => setDeclining(item)} className="flex items-center gap-2 border border-white/15 px-4 py-2.5 text-sm text-white/70 hover:border-white/30"><X size={16} />婉拒</button>
-                </>}
-                {item.chatId && <button onClick={() => navigate(`/chat/${item.chatId}`)} className="flex items-center gap-2 border border-white/15 px-4 py-2.5 text-sm text-white/70"><MessageCircle size={16} />開啟對話</button>}
-                <button onClick={(e) => { e.stopPropagation(); setViewing(item); }} className="flex items-center gap-2 border border-white/15 px-4 py-2.5 text-sm text-white/70 hover:border-white/30"><InfoIcon size={16} />查看完整詳情</button>
-              </div>
-            </article>
-          );})}
+          {activeItems.map((item) => renderCommissionCard(item))}
+        </div>
+      )}
+
+      {historyItems.length > 0 && (
+        <div className="mt-8">
+          <button
+            type="button"
+            onClick={() => setShowHistory((v) => !v)}
+            className="flex items-center gap-2 text-sm text-white/50 hover:text-white"
+          >
+            <History size={16} />
+            歷史訂單（{historyItems.length}）
+            <ChevronDown size={16} className={`transition-transform ${showHistory ? "rotate-180" : ""}`} />
+          </button>
+          {showHistory && (
+            <div className="mt-4 grid gap-3">
+              {historyItems.map((item) => renderCommissionCard(item))}
+            </div>
+          )}
         </div>
       )}
 
@@ -161,6 +277,10 @@ export function OrdersPage() {
           onAccept={() => void accept(viewing)}
           onDecline={() => { setDeclining(viewing); setViewing(null); }}
           onOpenChat={() => navigate(`/chat/${viewing.chatId}`)}
+          onDeliverDraft={() => void deliverDraft(viewing)}
+          onDeliverFinal={() => void deliverFinal(viewing)}
+          onConfirmDraft={() => void confirmDraftOrder(viewing)}
+          onConfirmFinal={() => void confirmFinalOrder(viewing)}
         />
       )}
     </div>
@@ -317,6 +437,28 @@ function downloadCalendar(events: DeadlineEvent[]) {
 
 function Info({ label, value }: { label: string; value: string }) { return <div><dt className="text-xs text-white/35">{label}</dt><dd className="mt-1 text-white/75">{value}</dd></div>; }
 function Skeleton() { return <div className="h-52 animate-pulse border border-white/8 bg-white/[0.035]" />; }
+
+function ProgressLine({ item }: { item: Commission }) {
+  const steps = buildProgressSteps(item);
+  return (
+    <div className="mt-5 border-t border-white/8 pt-4">
+      <p className="mb-3 text-xs text-white/35">進度</p>
+      <div className="flex items-center">
+        {steps.map((step, index) => (
+          <React.Fragment key={step.key}>
+            <div className="flex flex-col items-center gap-1.5">
+              <div className={`grid h-6 w-6 shrink-0 place-items-center rounded-full border text-[10px] ${step.done ? "border-emerald-300/60 bg-emerald-300/15 text-emerald-200" : "border-white/15 text-white/30"}`}>
+                {step.done ? <Check size={12} /> : index + 1}
+              </div>
+              <span className={`whitespace-nowrap text-[10px] ${step.done ? "text-white/70" : "text-white/30"}`}>{step.label}</span>
+            </div>
+            {index < steps.length - 1 && <div className={`mx-1 h-px flex-1 ${steps[index + 1].done ? "bg-emerald-300/40" : "bg-white/10"}`} />}
+          </React.Fragment>
+        ))}
+      </div>
+    </div>
+  );
+}
 function formatBudget(item: Commission) { if (item.budgetMin == null && item.budgetMax == null) return '另議'; return `NT$ ${(item.budgetMin ?? 0).toLocaleString()} 到 ${(item.budgetMax ?? item.budgetMin ?? 0).toLocaleString()}`; }
 
 function DeclineDialog({ item, onClose, onDone }: { item: Commission; onClose: () => void; onDone: () => Promise<void> }) {
@@ -351,6 +493,10 @@ function CommissionDetailModal({
   onAccept,
   onDecline,
   onOpenChat,
+  onDeliverDraft,
+  onDeliverFinal,
+  onConfirmDraft,
+  onConfirmFinal,
 }: {
   item: Commission;
   myUserId: string | null;
@@ -359,8 +505,16 @@ function CommissionDetailModal({
   onAccept: () => void;
   onDecline: () => void;
   onOpenChat: () => void;
+  onDeliverDraft: () => void;
+  onDeliverFinal: () => void;
+  onConfirmDraft: () => void;
+  onConfirmFinal: () => void;
 }) {
   const iAmClient = item.clientId === myUserId;
+  const canDeliverDraft = !iAmClient && (item.status === "accepted" || item.status === "in_progress") && !item.draftDeliveredAt;
+  const canDeliverFinal = !iAmClient && !!item.draftConfirmedAt && !item.finalDeliveredAt;
+  const canConfirmDraft = iAmClient && !!item.draftDeliveredAt && !item.draftConfirmedAt;
+  const canConfirmFinal = iAmClient && !!item.finalDeliveredAt && !item.finalConfirmedAt;
   const counterpartLabel = iAmClient
     ? (item.artistUserId ? `邀請 ${item.artistName}` : "公開委託（尚未有人接下）")
     : `來自 ${item.clientName}`;
@@ -388,6 +542,8 @@ function CommissionDetailModal({
           <Info label="初稿期限" value={item.draftDueDate ? new Date(item.draftDueDate).toLocaleDateString('zh-TW') : '未指定'} />
           <Info label="完稿 Deadline" value={item.finalDueDate ? new Date(item.finalDueDate).toLocaleDateString('zh-TW') : '未指定'} />
         </dl>
+
+        {item.status !== 'pending' && item.status !== 'rejected' && <ProgressLine item={item} />}
 
         {item.contact && (
           <div className="mt-4 border-t border-white/8 pt-4">
@@ -428,6 +584,10 @@ function CommissionDetailModal({
             <button disabled={busy} onClick={onDecline} className="flex items-center gap-2 border border-white/15 px-4 py-2.5 text-sm text-white/70 hover:border-white/30"><X size={16} />婉拒</button>
             <button disabled={busy} onClick={onAccept} className="flex items-center gap-2 bg-white px-4 py-2.5 text-sm font-semibold text-black disabled:opacity-40"><Check size={16} />接受並開始對話</button>
           </>}
+          {canDeliverDraft && <button disabled={busy} onClick={onDeliverDraft} className="flex items-center gap-2 border border-white/15 px-4 py-2.5 text-sm text-white/70 hover:border-white/30 disabled:opacity-40"><Truck size={16} />標記初稿已交付</button>}
+          {canDeliverFinal && <button disabled={busy} onClick={onDeliverFinal} className="flex items-center gap-2 border border-white/15 px-4 py-2.5 text-sm text-white/70 hover:border-white/30 disabled:opacity-40"><Truck size={16} />標記完稿已交付</button>}
+          {canConfirmDraft && <button disabled={busy} onClick={onConfirmDraft} className="flex items-center gap-2 bg-white px-4 py-2.5 text-sm font-semibold text-black disabled:opacity-40"><Check size={16} />確認初稿完成</button>}
+          {canConfirmFinal && <button disabled={busy} onClick={onConfirmFinal} className="flex items-center gap-2 bg-white px-4 py-2.5 text-sm font-semibold text-black disabled:opacity-40"><Check size={16} />確認完稿・結案</button>}
           {item.chatId && <button onClick={onOpenChat} className="flex items-center gap-2 border border-white/15 px-4 py-2.5 text-sm text-white/70"><MessageCircle size={16} />開啟對話</button>}
         </div>
       </div>
