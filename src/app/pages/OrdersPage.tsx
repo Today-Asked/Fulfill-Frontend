@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock3, Download, FileText, Inbox, Info as InfoIcon, MessageCircle, Paperclip, Send, Truck, X } from "lucide-react";
+import { CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock3, Download, FileText, HandCoins, Inbox, Info as InfoIcon, MessageCircle, PackageCheck, Paperclip, Pencil, PiggyBank, Send, Truck, X } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router";
 import { useAuth } from "../../contexts/AuthContext";
 import {
@@ -56,27 +56,31 @@ const STATUS_FILTERS: { key: string; label: string; statuses: Commission["status
   { key: "completed", label: "已完成", statuses: ["completed"] },
 ];
 
-/** Ties the received/sent tab to a consistent accent used across the tab pill, card border, and calendar. */
+/**
+ * Ties the received/sent tab to a consistent accent used across the tab pill, card border, and calendar.
+ * Draft vs final deadlines are told apart by shape (hollow ring vs solid fill), not just shade, so the
+ * distinction still reads for colorblind users — the color is a secondary cue on top of that.
+ */
 const ROLE_THEME = {
   received: {
     tabActive: "bg-sky-500 text-white",
     cardBorder: "border-l-sky-400/70",
     icon: "text-sky-300",
-    tagSoft: "bg-sky-400/15 text-sky-200",
-    tagStrong: "bg-sky-400/25 text-sky-100",
     ring: "border-sky-300/50 bg-sky-400/10",
-    dotSoft: "bg-sky-300",
-    dotStrong: "bg-sky-500",
+    tagDraft: "border border-sky-300/50 bg-sky-300/10 text-sky-200",
+    tagFinal: "bg-sky-500 text-white",
+    dotDraft: "border-2 border-sky-300",
+    dotFinal: "bg-sky-500",
   },
   sent: {
     tabActive: "bg-indigo-500 text-white",
     cardBorder: "border-l-indigo-400/70",
     icon: "text-indigo-300",
-    tagSoft: "bg-indigo-400/15 text-indigo-200",
-    tagStrong: "bg-indigo-400/25 text-indigo-100",
     ring: "border-indigo-300/50 bg-indigo-400/10",
-    dotSoft: "bg-indigo-300",
-    dotStrong: "bg-indigo-500",
+    tagDraft: "border border-indigo-300/50 bg-indigo-300/10 text-indigo-200",
+    tagFinal: "bg-indigo-500 text-white",
+    dotDraft: "border-2 border-indigo-300",
+    dotFinal: "bg-indigo-500",
   },
 } as const;
 
@@ -91,25 +95,16 @@ export function OrdersPage() {
   const [busyId, setBusyId] = useState<number | null>(null);
   const [declining, setDeclining] = useState<Commission | null>(null);
   const [viewing, setViewing] = useState<Commission | null>(null);
-  /** Empty set reads as "全部" — clicking a specific chip clears that implicit default. */
-  const [statusFilters, setStatusFilters] = useState<Set<string>>(new Set());
+  /** Empty string reads as "全部" — single-select, so choosing a chip replaces whatever was active. */
+  const [statusFilter, setStatusFilter] = useState<string>("");
 
   const theme = ROLE_THEME[role];
 
   const filteredItems = useMemo(() => {
-    if (statusFilters.size === 0) return items;
-    const allowed = new Set(STATUS_FILTERS.filter((f) => statusFilters.has(f.key)).flatMap((f) => f.statuses));
+    if (!statusFilter) return items;
+    const allowed = new Set(STATUS_FILTERS.find((f) => f.key === statusFilter)?.statuses ?? []);
     return items.filter((item) => allowed.has(item.status));
-  }, [items, statusFilters]);
-
-  function toggleStatusFilter(key: string) {
-    setStatusFilters((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
-  }
+  }, [items, statusFilter]);
 
   async function reload() {
     if (!user) return;
@@ -230,7 +225,7 @@ export function OrdersPage() {
           <Info label="預算" value={formatBudget(item)} />
           <Info label="交件" value={item.finalDueDate ? new Date(item.finalDueDate).toLocaleDateString('zh-TW') : '未指定'} />
         </dl>
-        {item.status !== 'pending' && item.status !== 'rejected' && <ProgressLine item={item} />}
+        {item.status !== 'pending' && item.status !== 'rejected' && <ProgressLine item={item} role={itemRole} />}
         {item.status === 'rejected' && item.declineReason && (
           <div className="mt-4 border-l-2 border-white/10 pl-4">
             <p className="text-xs text-white/35">{itemRole === 'sent' ? '對方婉拒原因' : '你婉拒的原因'}</p>
@@ -256,6 +251,24 @@ export function OrdersPage() {
 
   return (
     <div className="pt-6 lg:pt-10">
+      {/* 全域方向篩選：套用在下方月曆與訂單列表兩個區塊。圖示對應組長手繪的稿子——
+          收到的＝小豬撲滿接住錢幣，送出的＝手把錢幣送出去。 */}
+      <div className="mb-6 grid grid-cols-2 gap-2 rounded-2xl border border-white/10 bg-white/5 p-2">
+        {(['received', 'sent'] as const).map((value) => {
+          const Icon = value === 'received' ? PiggyBank : HandCoins;
+          return (
+            <button
+              key={value}
+              onClick={() => setRole(value)}
+              className={`flex flex-col items-center gap-1.5 rounded-xl py-3 transition-all duration-200 ${role === value ? ROLE_THEME[value].tabActive : 'text-white/40 hover:text-white/60'}`}
+            >
+              <Icon size={22} strokeWidth={1.8} />
+              <span className="text-xs font-medium">{value === 'received' ? '收到的委託' : '送出的委託'}</span>
+            </button>
+          );
+        })}
+      </div>
+
       <CommissionCalendar
         commissions={items}
         role={role}
@@ -267,34 +280,23 @@ export function OrdersPage() {
           <p className="mb-2 text-xs tracking-[0.18em] text-white/40">ORDERS</p>
           <h1 className="text-2xl font-semibold tracking-tight text-white">訂單</h1>
         </div>
-        <div className="flex rounded-full border border-white/10 bg-white/5 p-1">
-          {(['received', 'sent'] as const).map((value) => (
-            <button
-              key={value}
-              onClick={() => setRole(value)}
-              className={`rounded-full px-4 py-2 text-sm font-medium transition-all duration-200 ${role === value ? ROLE_THEME[value].tabActive : 'text-white/40 hover:text-white/60'}`}
-            >
-              {value === 'received' ? '收到的' : '送出的'}
-            </button>
-          ))}
-        </div>
       </div>
 
       <div className="mb-8 flex flex-wrap gap-2">
         <button
           type="button"
-          onClick={() => setStatusFilters(new Set())}
-          className={`rounded-full border px-3.5 py-1.5 text-xs font-medium transition-colors ${statusFilters.size === 0 ? 'border-white/70 bg-white text-black' : 'border-white/10 text-white/40 hover:border-white/25 hover:text-white/60'}`}
+          onClick={() => setStatusFilter("")}
+          className={`rounded-full border px-3.5 py-1.5 text-xs font-medium transition-colors ${!statusFilter ? 'border-white/70 bg-white text-black' : 'border-white/10 text-white/40 hover:border-white/25 hover:text-white/60'}`}
         >
           全部
         </button>
         {STATUS_FILTERS.map((filter) => {
-          const active = statusFilters.has(filter.key);
+          const active = statusFilter === filter.key;
           return (
             <button
               key={filter.key}
               type="button"
-              onClick={() => toggleStatusFilter(filter.key)}
+              onClick={() => setStatusFilter(filter.key)}
               className={`rounded-full border px-3.5 py-1.5 text-xs font-medium transition-colors ${active ? 'border-white/70 bg-white text-black' : 'border-white/10 text-white/40 hover:border-white/25 hover:text-white/60'}`}
             >
               {filter.label}
@@ -416,8 +418,9 @@ function CommissionCalendar({ commissions, role, onOpenCommission }: { commissio
     return (
       <button key={key} type="button" onClick={() => setSelectedDate(key)} className={`flex min-h-11 flex-col items-center gap-0.5 overflow-hidden rounded-lg border py-1 transition-colors ${selected ? theme.ring : "border-transparent hover:bg-white/5"}`}>
         <span className={`grid h-6 w-6 place-items-center rounded-full text-[11px] ${today ? "bg-white text-black" : "text-white/55"}`}>{date.getDate()}</span>
-        <span className="flex h-1.5 items-center justify-center gap-0.5">
-          {dayEvents.slice(0, 4).map((event) => <span key={event.id} className={`h-1.5 w-1.5 rounded-full ${event.kind === "draft" ? theme.dotSoft : theme.dotStrong}`} />)}
+        <span className="flex h-2 items-center justify-center gap-1">
+          {/* 初稿＝空心圓環、完稿＝實心圓點——形狀不同，不只靠顏色深淺分辨 */}
+          {dayEvents.slice(0, 4).map((event) => <span key={event.id} className={`h-2 w-2 rounded-full ${event.kind === "draft" ? theme.dotDraft : theme.dotFinal}`} />)}
         </span>
       </button>
     );
@@ -479,7 +482,10 @@ function CommissionCalendar({ commissions, role, onOpenCommission }: { commissio
                   onClick={() => onOpenCommission(event.commission)}
                   className="flex w-full items-center gap-2 rounded-lg px-1.5 py-1.5 text-left hover:bg-white/5"
                 >
-                  <span className={`shrink-0 rounded px-1 py-0.5 text-[10px] font-medium ${event.kind === "draft" ? theme.tagSoft : theme.tagStrong}`}>{event.kind === "draft" ? "初稿" : "完稿"}</span>
+                  <span className={`flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium ${event.kind === "draft" ? theme.tagDraft : theme.tagFinal}`}>
+                    {event.kind === "draft" ? <Pencil size={10} /> : <PackageCheck size={10} />}
+                    {event.kind === "draft" ? "初稿" : "完稿"}{role === "received" ? "交件" : "確認"}
+                  </span>
                   <span className="min-w-0 flex-1 truncate text-xs text-white/80">{event.commission.orgName}</span>
                   <span className="shrink-0 text-xs text-white/30">{statusLabel[event.commission.status]}</span>
                 </button>
@@ -522,23 +528,30 @@ function downloadCalendar(events: DeadlineEvent[]) {
 function Info({ label, value }: { label: string; value: string }) { return <div><dt className="text-xs text-white/35">{label}</dt><dd className="mt-1 text-white/75">{value}</dd></div>; }
 function Skeleton() { return <div className="h-52 animate-pulse border border-white/8 bg-white/[0.035]" />; }
 
-function ProgressLine({ item }: { item: Commission }) {
+function ProgressLine({ item, role }: { item: Commission; role: "received" | "sent" }) {
   const steps = buildProgressSteps(item);
+  const theme = ROLE_THEME[role];
+  // 第一個尚未完成的步驟＝目前進行中；再之前的都算已完成，之後的都還沒開始
+  const firstPending = steps.findIndex((step) => !step.done);
+  const activeIndex = firstPending === -1 ? steps.length : firstPending;
   return (
     <div className="mt-5 border-t border-white/8 pt-4">
       <p className="mb-3 text-xs text-white/35">進度</p>
-      <div className="flex items-center">
-        {steps.map((step, index) => (
-          <React.Fragment key={step.key}>
-            <div className="flex flex-col items-center gap-1.5">
-              <div className={`grid h-6 w-6 shrink-0 place-items-center rounded-full border text-[10px] ${step.done ? "border-emerald-300/60 bg-emerald-300/15 text-emerald-200" : "border-white/15 text-white/30"}`}>
-                {step.done ? <Check size={12} /> : index + 1}
+      <div className="flex items-start gap-1.5">
+        {steps.map((step, index) => {
+          const isDone = index < activeIndex;
+          const isActive = index === activeIndex;
+          return (
+            <div key={step.key} className="flex flex-1 flex-col items-center gap-1.5">
+              <span className={`whitespace-nowrap text-[10px] font-medium ${isDone ? "text-white/80" : isActive ? theme.icon : "text-white/30"}`}>{step.label}</span>
+              <span className={`h-1.5 w-1.5 rounded-full ${isDone ? theme.dotFinal : ""}`} />
+              <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/10">
+                {isDone && <div className={`h-full w-full rounded-full ${theme.dotFinal}`} />}
+                {isActive && <div className={`h-full w-1/2 rounded-full ${theme.dotFinal}`} />}
               </div>
-              <span className={`whitespace-nowrap text-[10px] ${step.done ? "text-white/70" : "text-white/30"}`}>{step.label}</span>
             </div>
-            {index < steps.length - 1 && <div className={`mx-1 h-px flex-1 ${steps[index + 1].done ? "bg-emerald-300/40" : "bg-white/10"}`} />}
-          </React.Fragment>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
@@ -627,7 +640,7 @@ function CommissionDetailModal({
           <Info label="完稿 Deadline" value={item.finalDueDate ? new Date(item.finalDueDate).toLocaleDateString('zh-TW') : '未指定'} />
         </dl>
 
-        {item.status !== 'pending' && item.status !== 'rejected' && <ProgressLine item={item} />}
+        {item.status !== 'pending' && item.status !== 'rejected' && <ProgressLine item={item} role={iAmClient ? "sent" : "received"} />}
 
         {item.contact && (
           <div className="mt-4 border-t border-white/8 pt-4">
