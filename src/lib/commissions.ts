@@ -271,6 +271,47 @@ export async function inquireCommission(commission: Commission, myUserId: string
 }
 
 /**
+ * Finds a still-pending, targeted (artist already assigned) invite between
+ * exactly these two people, if one exists — used by ChatRoomPage to offer
+ * accept/decline right inside the chat opened via openCommissionChat(),
+ * instead of sending the artist back to the Orders page to decide.
+ */
+export async function getPendingCommissionBetween(myUserId: string, otherUserId: string): Promise<Commission | null> {
+  const { data, error } = await supabase
+    .from("commission_requests")
+    .select(SELECT)
+    .eq("status", "pending")
+    .not("artist_id", "is", null)
+    .or(`client_id.eq.${myUserId},client_id.eq.${otherUserId}`)
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  const rows = (data ?? []).map(toCommission);
+  return (
+    rows.find(
+      (c) =>
+        (c.clientId === myUserId && c.artistUserId === otherUserId) ||
+        (c.clientId === otherUserId && c.artistUserId === myUserId),
+    ) ?? null
+  );
+}
+
+/**
+ * Lets either side start chatting about a targeted (already-assigned) invite
+ * before it's been accepted or declined — reuses whatever conversation
+ * accept_commission() will later attach via the (usera_id, userb_id)
+ * uniqueness on `conversations`, so nothing needs to be written back onto
+ * the commission row at this stage; acceptance just finds the same thread.
+ */
+export async function openCommissionChat(commission: Commission, myUserId: string): Promise<number> {
+  if (commission.chatId) return commission.chatId;
+  const otherUserId = myUserId === commission.clientId ? commission.artistUserId : commission.clientId;
+  if (!otherUserId) throw new Error("目前還沒有指定的創作者可以聊聊。");
+  const chatId = await getOrCreateConversation(myUserId, otherUserId);
+  if (!chatId) throw new Error("無法建立對話。");
+  return chatId;
+}
+
+/**
  * The client's one-click "邀請他接案" from inside a chat — no form to
  * refill. Just assigns the commission to that creator; it still shows up
  * as a normal pending invite in their OrdersPage inbox, and nothing about

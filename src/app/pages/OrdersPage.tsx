@@ -11,6 +11,7 @@ import {
   markCommissionViewed,
   markDraftDelivered,
   markFinalDelivered,
+  openCommissionChat,
   type Commission,
   type DeclineReason,
 } from "../../lib/commissions";
@@ -40,6 +41,16 @@ const statusLabel: Record<Commission["status"], string> = {
   delivered: "已交件",
   completed: "已完成",
 };
+
+/** Simplified status shown on the order card and detail modal header — "accepted" collapses into
+ *  "進行中" (accepting just starts the work), and completed/rejected each get their own color so
+ *  they're never confused with an in-progress order. */
+function statusBadge(status: Commission["status"]): { label: string; className: string } {
+  if (status === "pending") return { label: "待回覆", className: "border-amber-300/30 text-amber-200" };
+  if (status === "rejected") return { label: "已拒絕", className: "border-rose-400/30 text-rose-300" };
+  if (status === "completed") return { label: "已完成", className: "border-emerald-300/30 text-emerald-200" };
+  return { label: "進行中", className: "border-blue-300/30 text-blue-200" }; // accepted | in_progress | delivered
+}
 
 const declineReasonLabel: Record<DeclineReason, string> = {
   schedule: "時間無法配合",
@@ -140,6 +151,20 @@ export function OrdersPage() {
     }
   }
 
+  async function openChat(item: Commission) {
+    if (!user) return;
+    setBusyId(item.id);
+    setError("");
+    try {
+      const chatId = await openCommissionChat(item, user.id);
+      navigate(`/chat/${chatId}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "開啟對話失敗，請稍後再試。");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   async function deliverDraft(item: Commission) {
     if (!user) return;
     setBusyId(item.id);
@@ -202,47 +227,22 @@ export function OrdersPage() {
 
   function renderCommissionCard(item: Commission) {
     const itemRole = role;
-    const canDeliverDraft = itemRole === "received" && (item.status === "accepted" || item.status === "in_progress") && !item.draftDeliveredAt;
-    const canDeliverFinal = itemRole === "received" && !!item.draftConfirmedAt && !item.finalDeliveredAt;
-    const canConfirmDraft = itemRole === "sent" && !!item.draftDeliveredAt && !item.draftConfirmedAt;
-    const canConfirmFinal = itemRole === "sent" && !!item.finalDeliveredAt && !item.finalConfirmedAt;
+    const badge = statusBadge(item.status);
+    const counterpart = itemRole === 'received' ? `來自 ${item.clientName}` : item.artistUserId ? `邀請 ${item.artistName}` : '公開委託（尚未有人接下）';
+    // 「送出的」如果還沒指定創作者（公開委託未被接下），沒有特定對象可以聊
+    const canChat = itemRole === 'received' || !!item.artistUserId || !!item.chatId;
     return (
       <article id={`commission-${item.id}`} key={item.id} onClick={() => { if (!item.viewedAt && itemRole === 'received') void markCommissionViewed(item.id); }} className={`scroll-mt-24 border-y border-r border-white/10 border-l-4 ${theme.cardBorder} bg-white/[0.035] p-5 lg:p-6`}>
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="min-w-0">
-            <div className="mb-2 flex items-center gap-2 text-xs text-white/40">
-              {itemRole === 'received' ? <Inbox size={14} className={theme.icon} /> : <Send size={14} className={theme.icon} />}
-              <Clock3 size={14} />{new Date(item.createdAt).toLocaleDateString('zh-TW')}
-            </div>
             <h2 className="text-xl font-semibold text-white">{item.orgName}</h2>
-            <p className="mt-1 text-sm text-white/50">{itemRole === 'received' ? `來自 ${item.clientName}` : item.artistUserId ? `邀請 ${item.artistName}` : '公開委託（尚未有人接下）'}</p>
+            <p className="mt-1 text-sm text-white/50">{counterpart}</p>
           </div>
-          <span className={`border px-3 py-1 text-xs ${item.status === 'pending' ? 'border-amber-300/30 text-amber-200' : item.status === 'rejected' ? 'border-white/10 text-white/35' : 'border-emerald-300/30 text-emerald-200'}`}>{statusLabel[item.status]}</span>
+          <span className={`border px-3 py-1 text-xs ${badge.className}`}>{badge.label}</span>
         </div>
-        <p className="mt-5 whitespace-pre-wrap text-sm leading-6 text-white/70">{item.description}</p>
-        <dl className="mt-5 grid gap-3 border-t border-white/8 pt-4 text-sm sm:grid-cols-3">
-          <Info label="服務" value={item.services.join('、') || '未填寫'} />
-          <Info label="預算" value={formatBudget(item)} />
-          <Info label="交件" value={item.finalDueDate ? new Date(item.finalDueDate).toLocaleDateString('zh-TW') : '未指定'} />
-        </dl>
         {item.status !== 'pending' && item.status !== 'rejected' && <ProgressLine item={item} role={itemRole} />}
-        {item.status === 'rejected' && item.declineReason && (
-          <div className="mt-4 border-l-2 border-white/10 pl-4">
-            <p className="text-xs text-white/35">{itemRole === 'sent' ? '對方婉拒原因' : '你婉拒的原因'}</p>
-            <p className="mt-1 text-sm text-white/70">{declineReasonLabel[item.declineReason]}</p>
-            {item.replyNote && <p className="mt-1 whitespace-pre-wrap text-sm text-white/50">{item.replyNote}</p>}
-          </div>
-        )}
         <div className="mt-5 flex flex-wrap gap-2">
-          {itemRole === 'received' && item.status === 'pending' && <>
-            <button disabled={busyId === item.id} onClick={() => void accept(item)} className="flex items-center gap-2 bg-white px-4 py-2.5 text-sm font-semibold text-black disabled:opacity-40"><Check size={16} />接受並開始對話</button>
-            <button onClick={() => setDeclining(item)} className="flex items-center gap-2 border border-white/15 px-4 py-2.5 text-sm text-white/70 hover:border-white/30"><X size={16} />婉拒</button>
-          </>}
-          {canDeliverDraft && <button disabled={busyId === item.id} onClick={() => void deliverDraft(item)} className="flex items-center gap-2 border border-white/15 px-4 py-2.5 text-sm text-white/70 hover:border-white/30 disabled:opacity-40"><Truck size={16} />標記初稿已交付</button>}
-          {canDeliverFinal && <button disabled={busyId === item.id} onClick={() => void deliverFinal(item)} className="flex items-center gap-2 border border-white/15 px-4 py-2.5 text-sm text-white/70 hover:border-white/30 disabled:opacity-40"><Truck size={16} />標記完稿已交付</button>}
-          {canConfirmDraft && <button disabled={busyId === item.id} onClick={() => void confirmDraftOrder(item)} className="flex items-center gap-2 bg-white px-4 py-2.5 text-sm font-semibold text-black disabled:opacity-40"><Check size={16} />確認初稿完成</button>}
-          {canConfirmFinal && <button disabled={busyId === item.id} onClick={() => void confirmFinalOrder(item)} className="flex items-center gap-2 bg-white px-4 py-2.5 text-sm font-semibold text-black disabled:opacity-40"><Check size={16} />確認完稿・結案</button>}
-          {item.chatId && <button onClick={() => navigate(`/chat/${item.chatId}`)} className="flex items-center gap-2 border border-white/15 px-4 py-2.5 text-sm text-white/70"><MessageCircle size={16} />開啟對話</button>}
+          {canChat && <button disabled={busyId === item.id} onClick={(e) => { e.stopPropagation(); void openChat(item); }} className="flex items-center gap-2 border border-white/15 px-4 py-2.5 text-sm text-white/70 hover:border-white/30 disabled:opacity-40"><MessageCircle size={16} />開啟對話</button>}
           <button onClick={(e) => { e.stopPropagation(); setViewing(item); }} className="flex items-center gap-2 border border-white/15 px-4 py-2.5 text-sm text-white/70 hover:border-white/30"><InfoIcon size={16} />查看完整詳情</button>
         </div>
       </article>
@@ -332,7 +332,7 @@ export function OrdersPage() {
           onClose={() => setViewing(null)}
           onAccept={() => void accept(viewing)}
           onDecline={() => { setDeclining(viewing); setViewing(null); }}
-          onOpenChat={() => navigate(`/chat/${viewing.chatId}`)}
+          onOpenChat={() => void openChat(viewing)}
           onDeliverDraft={() => void deliverDraft(viewing)}
           onDeliverFinal={() => void deliverFinal(viewing)}
           onConfirmDraft={() => void confirmDraftOrder(viewing)}
@@ -430,9 +430,15 @@ function CommissionCalendar({ commissions, role, onOpenCommission }: { commissio
     <section className="mb-5 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.035]">
       <div className="flex items-center justify-between gap-3 border-b border-white/8 px-4 py-3">
         <div className="flex items-center gap-2"><CalendarDays size={16} className={theme.icon} /><h2 className="text-sm font-semibold text-white">委託行程</h2></div>
-        <button type="button" disabled={events.length === 0} onClick={() => downloadCalendar(events)} className="flex items-center gap-1.5 rounded-full border border-white/12 bg-white/5 px-3 py-1.5 text-xs text-white/65 hover:bg-white/10 disabled:opacity-30">
-          <Download size={13} />匯出
-        </button>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5 text-[10px] text-white/40">
+            <span className="flex items-center gap-1"><span className={`h-2 w-2 rounded-full ${theme.dotDraft}`} />初稿</span>
+            <span className="flex items-center gap-1"><span className={`h-2 w-2 rounded-full ${theme.dotFinal}`} />完稿</span>
+          </div>
+          <button type="button" disabled={events.length === 0} onClick={() => downloadCalendar(events)} className="flex items-center gap-1.5 rounded-full border border-white/12 bg-white/5 px-3 py-1.5 text-xs text-white/65 hover:bg-white/10 disabled:opacity-30">
+            <Download size={13} />匯出
+          </button>
+        </div>
       </div>
 
       <div className="p-3">
@@ -558,7 +564,7 @@ function ProgressLine({ item, role }: { item: Commission; role: "received" | "se
 }
 function formatBudget(item: Commission) { if (item.budgetMin == null && item.budgetMax == null) return '另議'; return `NT$ ${(item.budgetMin ?? 0).toLocaleString()} 到 ${(item.budgetMax ?? item.budgetMin ?? 0).toLocaleString()}`; }
 
-function DeclineDialog({ item, onClose, onDone }: { item: Commission; onClose: () => void; onDone: () => Promise<void> }) {
+export function DeclineDialog({ item, onClose, onDone }: { item: Commission; onClose: () => void; onDone: () => Promise<void> }) {
   const [reason, setReason] = useState<DeclineReason>('schedule');
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
@@ -612,6 +618,9 @@ function CommissionDetailModal({
   const canDeliverFinal = !iAmClient && !!item.draftConfirmedAt && !item.finalDeliveredAt;
   const canConfirmDraft = iAmClient && !!item.draftDeliveredAt && !item.draftConfirmedAt;
   const canConfirmFinal = iAmClient && !!item.finalDeliveredAt && !item.finalConfirmedAt;
+  // 「送出的」如果還沒指定創作者（公開委託未被接下），沒有特定對象可以聊
+  const canChat = !iAmClient || !!item.artistUserId || !!item.chatId;
+  const badge = statusBadge(item.status);
   const counterpartLabel = iAmClient
     ? (item.artistUserId ? `邀請 ${item.artistName}` : "公開委託（尚未有人接下）")
     : `來自 ${item.clientName}`;
@@ -626,7 +635,7 @@ function CommissionDetailModal({
             <p className="mt-1 text-sm text-white/50">{counterpartLabel}</p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <span className={`border px-3 py-1 text-xs ${item.status === 'pending' ? 'border-amber-300/30 text-amber-200' : item.status === 'rejected' ? 'border-white/10 text-white/35' : 'border-emerald-300/30 text-emerald-200'}`}>{statusLabel[item.status]}</span>
+            <span className={`border px-3 py-1 text-xs ${badge.className}`}>{badge.label}</span>
             <button onClick={onClose} aria-label="關閉" className="text-white/40 hover:text-white"><X size={20} /></button>
           </div>
         </div>
@@ -685,7 +694,7 @@ function CommissionDetailModal({
           {canDeliverFinal && <button disabled={busy} onClick={onDeliverFinal} className="flex items-center gap-2 border border-white/15 px-4 py-2.5 text-sm text-white/70 hover:border-white/30 disabled:opacity-40"><Truck size={16} />標記完稿已交付</button>}
           {canConfirmDraft && <button disabled={busy} onClick={onConfirmDraft} className="flex items-center gap-2 bg-white px-4 py-2.5 text-sm font-semibold text-black disabled:opacity-40"><Check size={16} />確認初稿完成</button>}
           {canConfirmFinal && <button disabled={busy} onClick={onConfirmFinal} className="flex items-center gap-2 bg-white px-4 py-2.5 text-sm font-semibold text-black disabled:opacity-40"><Check size={16} />確認完稿・結案</button>}
-          {item.chatId && <button onClick={onOpenChat} className="flex items-center gap-2 border border-white/15 px-4 py-2.5 text-sm text-white/70"><MessageCircle size={16} />開啟對話</button>}
+          {canChat && <button disabled={busy} onClick={onOpenChat} className="flex items-center gap-2 border border-white/15 px-4 py-2.5 text-sm text-white/70 disabled:opacity-40"><MessageCircle size={16} />開啟對話</button>}
         </div>
       </div>
     </div>
