@@ -1,11 +1,21 @@
 import React, { useState, useRef, useEffect, useMemo } from "react";
 import { useNavigate, useParams } from "react-router";
-import { ArrowLeft, Info, Send, Paperclip, Loader2, Briefcase } from "lucide-react";
+import { ArrowLeft, Info, Send, Paperclip, Loader2, Briefcase, Check, X } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import { useAuth } from "../../contexts/AuthContext";
 import { useUpload } from "../../lib/useUpload";
-import { confirmDraft, confirmFinal, getCommission, inviteCommissionArtist, listConversationCommissions, type Commission } from "../../lib/commissions";
+import {
+  acceptCommission,
+  confirmDraft,
+  confirmFinal,
+  getCommission,
+  getPendingCommissionBetween,
+  inviteCommissionArtist,
+  listConversationCommissions,
+  type Commission,
+} from "../../lib/commissions";
 import { submitReport, toggleBlock, type ReportReason } from "../../lib/creators";
+import { DeclineDialog } from "./OrdersPage";
 
 const PAGE_SIZE = 50;
 
@@ -60,6 +70,13 @@ export function ChatRoomPage() {
   const [referencedCommission, setReferencedCommission] = useState<Commission | null>(null);
   const [inviting, setInviting] = useState(false);
   const [inviteError, setInviteError] = useState("");
+
+  // 這個聊天室對應的、還沒被接受/婉拒的指定邀請——讓聊聊之後可以直接在這裡
+  // 決定，不用回「訂單」頁。同樣只在總覽分頁才有意義。
+  const [pendingInvite, setPendingInvite] = useState<Commission | null>(null);
+  const [acceptingPending, setAcceptingPending] = useState(false);
+  const [pendingError, setPendingError] = useState("");
+  const [decliningPending, setDecliningPending] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -267,6 +284,36 @@ export function ChatRoomPage() {
     }
   }
 
+  // 找這兩個人之間還有沒有一則指定邀請卡在「待回覆」——只在總覽分頁查，
+  // 換分頁或換聊天室就重新算一次
+  useEffect(() => {
+    if (!user || !otherUser || activeTab !== null) { setPendingInvite(null); return; }
+    let cancelled = false;
+    getPendingCommissionBetween(user.id, otherUser.id)
+      .then((commission) => { if (!cancelled) setPendingInvite(commission); })
+      .catch(() => { if (!cancelled) setPendingInvite(null); });
+    return () => { cancelled = true; };
+  }, [user, otherUser, activeTab]);
+
+  // 我是創作者、對方是委託人時才能接受——按下去之後這則邀請會變成一個新分頁，
+  // 直接切過去，讓對話串接續在同一個地方
+  async function handleAcceptPending() {
+    if (!pendingInvite || !user) return;
+    setAcceptingPending(true);
+    setPendingError("");
+    try {
+      await acceptCommission(pendingInvite);
+      const updatedThreads = await listConversationCommissions(chatId);
+      setThreads(updatedThreads);
+      setPendingInvite(null);
+      setActiveTab(pendingInvite.id);
+    } catch (e) {
+      setPendingError(e instanceof Error ? e.message : "接受失敗，請重新整理再試一次。");
+    } finally {
+      setAcceptingPending(false);
+    }
+  }
+
   // 買家確認初稿／完稿——現在就在目前分頁的委託卡片裡按，不用點開任何下拉。
   // 只會在該委託自己的分頁被顯示，所以收到的訊息一定屬於目前分頁，直接接上去就好
   async function handleConfirmMilestone(commission: Commission, kind: "draft" | "final") {
@@ -381,6 +428,7 @@ export function ChatRoomPage() {
   const displayName = otherUser?.name || otherUser?.username || "...";
   const avatarUrl = otherUser?.avatar_url;
   const activeThread = activeTab == null ? null : threads.find((t) => t.id === activeTab) ?? null;
+  const isArtistInvite = pendingInvite != null && pendingInvite.artistUserId === user?.id;
 
   return (
     <div className="relative flex h-[calc(100dvh-82px)] flex-col rounded-2xl bg-[#141414] lg:h-[calc(100dvh-150px)]">
@@ -489,6 +537,42 @@ export function ChatRoomPage() {
       )}
       {inviteError && (
         <p className="mx-4 mt-2 flex-shrink-0 text-xs text-red-400">{inviteError}</p>
+      )}
+
+      {/* 先聊聊、再決定——這則指定邀請還沒接受/婉拒時，兩邊都能在這裡看到狀態，
+          創作者可以直接處理，不用跳回「訂單」頁 */}
+      {pendingInvite && (
+        <div className={`mx-4 mt-3 flex-shrink-0 flex items-center justify-between gap-3 rounded-xl border p-3 ${isArtistInvite ? "border-amber-300/30 bg-amber-400/10" : "border-white/10 bg-white/5"}`}>
+          <div className="flex items-center gap-2 min-w-0">
+            <Briefcase size={15} className={`shrink-0 ${isArtistInvite ? "text-amber-300" : "text-white/40"}`} />
+            <p className={`text-xs truncate ${isArtistInvite ? "text-amber-100" : "text-white/60"}`}>
+              {isArtistInvite
+                ? `邀請你合作「${pendingInvite.orgName}」，尚未回覆`
+                : `已送出「${pendingInvite.orgName}」邀請，等待對方回覆`}
+            </p>
+          </div>
+          {isArtistInvite && (
+            <div className="flex shrink-0 items-center gap-2">
+              <button
+                onClick={() => setDecliningPending(true)}
+                disabled={acceptingPending}
+                className="flex items-center gap-1 rounded-full border border-white/15 px-3 py-2 text-xs text-white/70 hover:border-white/30 disabled:opacity-50"
+              >
+                <X size={13} />婉拒
+              </button>
+              <button
+                onClick={() => void handleAcceptPending()}
+                disabled={acceptingPending}
+                className="flex items-center gap-1 rounded-full bg-white px-3.5 py-2 text-xs font-semibold text-black hover:opacity-90 transition-opacity disabled:opacity-50"
+              >
+                <Check size={13} />{acceptingPending ? "接受中…" : "接受"}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+      {pendingError && (
+        <p className="mx-4 mt-2 flex-shrink-0 text-xs text-red-400">{pendingError}</p>
       )}
 
       {/* Messages */}
@@ -617,6 +701,17 @@ export function ChatRoomPage() {
           reporterId={user.id}
           onClose={() => setShowSafety(false)}
           onBlocked={() => navigate('/chat')}
+        />
+      )}
+
+      {decliningPending && pendingInvite && (
+        <DeclineDialog
+          item={pendingInvite}
+          onClose={() => setDecliningPending(false)}
+          onDone={async () => {
+            setDecliningPending(false);
+            setPendingInvite(null);
+          }}
         />
       )}
     </div>
