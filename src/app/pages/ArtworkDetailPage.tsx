@@ -4,6 +4,7 @@ import { ArrowLeft, ChevronLeft, ChevronRight, Heart, Bookmark, ImageOff } from 
 import { supabase } from "../../lib/supabase";
 import { useAuth } from "../../contexts/AuthContext";
 import { useLoginGate, LoginGateDialog } from "../components/LoginGate";
+import { ArtworkComments } from "../components/ArtworkComments";
 
 interface ArtworkDetail {
   id: number;
@@ -343,6 +344,12 @@ export function ArtworkDetailPage() {
             ))}
           </div>
         )}
+
+        <ArtworkComments
+          artworkId={artwork.id}
+          artworkOwnerId={creator?.userId ?? null}
+          requireAuth={loginGate.requireAuth}
+        />
 
         {/* Find more */}
         {moreArtworks.length > 0 && (

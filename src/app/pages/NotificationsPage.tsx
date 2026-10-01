@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
-import { ArrowLeft, BriefcaseBusiness, CalendarClock, Heart, UserPlus } from "lucide-react";
+import { ArrowLeft, AtSign, BriefcaseBusiness, CalendarClock, Heart, MessageCircle, UserPlus } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import { useAuth } from "../../contexts/AuthContext";
 import { formatChatTime } from "../../lib/chat";
+import { parseMentions } from "../../lib/comments";
 
 type NotifItem =
   | {
@@ -24,6 +25,19 @@ type NotifItem =
       avatar_url: string | null;
       artworkId: number;
       artworkTitle: string | null;
+      created_at: string;
+    }
+  | {
+      id: string;
+      // comment = 有人在我的作品留言；mention = 有人在留言 @我；comment_like = 有人對我的留言按愛心
+      type: "comment" | "mention" | "comment_like";
+      userId: string;
+      username: string | null;
+      name: string | null;
+      avatar_url: string | null;
+      artworkId: number;
+      artworkTitle: string | null;
+      preview: string;
       created_at: string;
     }
   | {
@@ -75,12 +89,20 @@ export function NotificationsPage() {
     if (!user) return;
 
     async function load() {
-      // 我的 artist profile + artwork ids（for likes query）
-      const { data: ap } = await supabase
-        .from("artist_profiles")
-        .select("id")
-        .eq("user_id", user!.id)
-        .maybeSingle();
+      // 我的 artist profile + artwork ids（for likes query）+ username（for @ 提及）
+      const [{ data: ap }, { data: me }] = await Promise.all([
+        supabase
+          .from("artist_profiles")
+          .select("id")
+          .eq("user_id", user!.id)
+          .maybeSingle(),
+        supabase
+          .from("users")
+          .select("username")
+          .eq("id", user!.id)
+          .maybeSingle(),
+      ]);
+      const myUsername: string | null = me?.username?.toLowerCase() ?? null;
 
       let myArtworkIds: number[] = [];
       if (ap?.id) {
@@ -92,7 +114,9 @@ export function NotificationsPage() {
         myArtworkIds = (artworks ?? []).map((a: any) => a.id);
       }
 
-      const [followsRes, likesRes, receivedCommissionsRes, sentCommissionsRes] = await Promise.all([
+      const commentSelect = "id, artwork_id, user_id, content, created_at, users:user_id(id, username, name, avatar_url), artworks(id, title)";
+
+      const [followsRes, likesRes, receivedCommissionsRes, sentCommissionsRes, commentsRes, mentionsRes, commentLikesRes] = await Promise.all([
         supabase
           .from("follows")
           .select("follower_id, created_at, users:follower_id(id, username, name, avatar_url)")
@@ -124,6 +148,37 @@ export function NotificationsPage() {
           .eq("client_id", user!.id)
           .order("updated_at", { ascending: false })
           .limit(30),
+
+        // 別人在我的作品留言
+        myArtworkIds.length > 0
+          ? supabase
+              .from("artwork_comments")
+              .select(commentSelect)
+              .in("artwork_id", myArtworkIds)
+              .neq("user_id", user!.id)
+              .order("created_at", { ascending: false })
+              .limit(30)
+          : Promise.resolve({ data: [], error: null }),
+
+        // 留言裡 @我 — ilike 先粗篩，下面再用 parseMentions 確認是完整的 username
+        myUsername
+          ? supabase
+              .from("artwork_comments")
+              .select(commentSelect)
+              .ilike("content", `%@${myUsername}%`)
+              .neq("user_id", user!.id)
+              .order("created_at", { ascending: false })
+              .limit(30)
+          : Promise.resolve({ data: [], error: null }),
+
+        // 別人對我的留言按愛心
+        supabase
+          .from("artwork_comment_likes")
+          .select("user_id, comment_id, created_at, users:user_id(id, username, name, avatar_url), artwork_comments!inner(user_id, artwork_id, content, artworks(id, title))")
+          .eq("artwork_comments.user_id", user!.id)
+          .neq("user_id", user!.id)
+          .order("created_at", { ascending: false })
+          .limit(30),
       ]);
 
       const notifs: NotifItem[] = [];
@@ -152,6 +207,61 @@ export function NotificationsPage() {
           avatar_url: l.users.avatar_url,
           artworkId: l.artwork_id,
           artworkTitle: l.artworks?.title ?? null,
+          created_at: l.created_at,
+        });
+      });
+
+      // 同一則留言同時是「留言在我的作品」又「@我」時，只顯示成 @我
+      const mentionedCommentIds = new Set<number>();
+      (mentionsRes.data ?? []).forEach((c: any) => {
+        if (!c.users) return;
+        const mentionsMe = parseMentions(c.content).some(
+          (segment) => segment.type === "mention" && segment.username === myUsername,
+        );
+        if (!mentionsMe) return;
+        mentionedCommentIds.add(c.id);
+        notifs.push({
+          id: `mention-${c.id}`,
+          type: "mention",
+          userId: c.user_id,
+          username: c.users.username,
+          name: c.users.name,
+          avatar_url: c.users.avatar_url,
+          artworkId: c.artwork_id,
+          artworkTitle: c.artworks?.title ?? null,
+          preview: c.content,
+          created_at: c.created_at,
+        });
+      });
+
+      (commentsRes.data ?? []).forEach((c: any) => {
+        if (!c.users || mentionedCommentIds.has(c.id)) return;
+        notifs.push({
+          id: `comment-${c.id}`,
+          type: "comment",
+          userId: c.user_id,
+          username: c.users.username,
+          name: c.users.name,
+          avatar_url: c.users.avatar_url,
+          artworkId: c.artwork_id,
+          artworkTitle: c.artworks?.title ?? null,
+          preview: c.content,
+          created_at: c.created_at,
+        });
+      });
+
+      (commentLikesRes.data ?? []).forEach((l: any) => {
+        if (!l.users || !l.artwork_comments) return;
+        notifs.push({
+          id: `comment-like-${l.user_id}-${l.comment_id}`,
+          type: "comment_like",
+          userId: l.user_id,
+          username: l.users.username,
+          name: l.users.name,
+          avatar_url: l.users.avatar_url,
+          artworkId: l.artwork_comments.artwork_id,
+          artworkTitle: l.artwork_comments.artworks?.title ?? null,
+          preview: l.artwork_comments.content,
           created_at: l.created_at,
         });
       });
@@ -260,7 +370,7 @@ export function NotificationsPage() {
                 key={item.id}
                 onClick={() => {
                   if (item.type === "commission" || item.type === "deadline") navigate(`/orders?view=${item.role}`);
-                  else if (item.type === "like") navigate(`/artwork/${item.artworkId}`);
+                  else if ("artworkId" in item) navigate(`/artwork/${item.artworkId}`);
                   else if (item.username) navigate(`/creator/${item.username}`);
                 }}
                 className="w-full flex items-center gap-4 px-5 py-4 hover:bg-white/4 transition-colors text-left"
@@ -277,7 +387,7 @@ export function NotificationsPage() {
                     )}
                   </div>
                   <div className={`absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full flex items-center justify-center border-2 border-[#141414] ${
-                    item.type === "follow" ? "bg-white" : item.type === "deadline" ? "bg-amber-500" : item.type === "commission" ? "bg-sky-500" : "bg-red-500"
+                    item.type === "follow" ? "bg-white" : item.type === "comment" ? "bg-emerald-500" : item.type === "mention" ? "bg-fuchsia-500" : item.type === "deadline" ? "bg-amber-500" : item.type === "commission" ? "bg-sky-500" : "bg-red-500"
                   }`}>
                     {item.type === "deadline"
                       ? <CalendarClock size={10} className="text-white" />
@@ -285,6 +395,10 @@ export function NotificationsPage() {
                       ? <BriefcaseBusiness size={10} className="text-white" />
                       : item.type === "follow"
                       ? <UserPlus size={9} className="text-white" />
+                      : item.type === "comment"
+                      ? <MessageCircle size={10} className="text-white" />
+                      : item.type === "mention"
+                      ? <AtSign size={10} className="text-white" />
                       : <Heart size={9} className="text-white fill-white" />
                     }
                   </div>
@@ -304,6 +418,17 @@ export function NotificationsPage() {
                         <span className="text-gray-400">按讚</span>
                       </>
                     )}
+                    {(item.type === "comment" || item.type === "mention" || item.type === "comment_like") && (
+                      <>
+                        <span className="text-gray-400">
+                          {item.type === "comment" ? " 在" : item.type === "mention" ? " 在" : " 喜歡你在"}
+                        </span>
+                        <span className="text-white">《{item.artworkTitle || "作品"}》</span>
+                        <span className="text-gray-400">
+                          {item.type === "comment" ? "留言" : item.type === "mention" ? "的留言提到你" : "的留言"}
+                        </span>
+                      </>
+                    )}
                     {item.type === "commission" && item.role === "received" && (
                       <><span className="text-gray-400"> 向你送出新委託</span><span className="text-white">《{item.orgName}》</span></>
                     )}
@@ -314,6 +439,9 @@ export function NotificationsPage() {
                       <><span className="text-gray-400">《{item.orgName}》的{item.deadlineKind}</span><span className="text-amber-200">{item.daysUntil === 0 ? "今天到期" : `剩下 ${item.daysUntil} 天`}</span></>
                     )}
                   </p>
+                  {"preview" in item && (
+                    <p className="mt-0.5 truncate text-xs text-gray-500">{item.preview}</p>
+                  )}
                   <p className="text-gray-600 text-[10px] mt-0.5">
                     {formatChatTime(item.created_at)}
                   </p>
