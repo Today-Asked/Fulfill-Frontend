@@ -4,79 +4,63 @@ import { ArrowLeft, AtSign, BriefcaseBusiness, CalendarClock, Heart, MessageCirc
 import { supabase } from "../../lib/supabase";
 import { useAuth } from "../../contexts/AuthContext";
 import { formatChatTime } from "../../lib/chat";
-import { parseMentions } from "../../lib/comments";
+import {
+  CommissionMilestone,
+  CommissionStatus,
+  NotificationRow,
+  fetchNotifications,
+  markAllNotificationsRead,
+} from "../../lib/notifications";
 
-type NotifItem =
-  | {
-      id: string;
-      type: "follow";
-      userId: string;
-      username: string | null;
-      name: string | null;
-      avatar_url: string | null;
-      created_at: string;
-    }
-  | {
-      id: string;
-      type: "like";
-      userId: string;
-      username: string | null;
-      name: string | null;
-      avatar_url: string | null;
-      artworkId: number;
-      artworkTitle: string | null;
-      created_at: string;
-    }
-  | {
-      id: string;
-      // comment = 有人在我的作品留言；mention = 有人在留言 @我；comment_like = 有人對我的留言按愛心
-      type: "comment" | "mention" | "comment_like";
-      userId: string;
-      username: string | null;
-      name: string | null;
-      avatar_url: string | null;
-      artworkId: number;
-      artworkTitle: string | null;
-      preview: string;
-      created_at: string;
-    }
-  | {
-      id: string;
-      type: "commission";
-      commissionId: number;
-      role: "received" | "sent";
-      counterpartName: string;
-      avatar_url: string | null;
-      orgName: string;
-      status: "pending" | "accepted" | "rejected" | "in_progress" | "delivered" | "completed";
-      created_at: string;
-    }
-  | {
-      id: string;
-      type: "deadline";
-      commissionId: number;
-      role: "received" | "sent";
-      counterpartName: string;
-      avatar_url: string | null;
-      orgName: string;
-      deadlineKind: "初稿期限" | "最終交件日";
-      daysUntil: number;
-      created_at: string;
-    };
+// 截止日提醒是「時間到了」而不是某個事件，所以不在 notifications 表裡，
+// 每次進來依進行中的委託現算。
+interface DeadlineItem {
+  id: string;
+  commissionId: number;
+  role: "received" | "sent";
+  counterpartName: string;
+  avatar_url: string | null;
+  orgName: string;
+  deadlineKind: "初稿期限" | "最終交件日";
+  daysUntil: number;
+}
 
-const commissionStatusText: Record<Extract<NotifItem, { type: "commission" }>["status"], string> = {
+type DisplayItem =
+  | { kind: "notification"; key: string; createdAt: string; row: NotificationRow }
+  | { kind: "deadline"; key: string; createdAt: string; item: DeadlineItem };
+
+// 委託人收到：創作者對委託做了什麼
+const clientSideStatusText: Record<CommissionStatus, string> = {
   pending: "等待回覆",
   accepted: "已接受你的委託",
   rejected: "婉拒了你的委託",
   in_progress: "已開始進行",
-  delivered: "已完成交件",
+  delivered: "已完成委託",
   completed: "訂單已完成",
+};
+
+// 交付 / 確認里程碑 — 交付是創作者通知委託人，確認是委託人通知創作者
+const milestoneText: Record<CommissionMilestone, string> = {
+  draft_delivered: "交付了初稿",
+  draft_confirmed: "確認了初稿",
+  final_delivered: "交付了完稿",
+  final_confirmed: "確認完稿並結案",
+};
+
+// 創作者收到：委託人改了委託狀態（目前只有確認完成）
+const artistSideStatusText: Record<CommissionStatus, string> = {
+  pending: "等待回覆",
+  accepted: "已接受",
+  rejected: "已婉拒",
+  in_progress: "進行中",
+  delivered: "已交件",
+  completed: "已完成",
 };
 
 export function NotificationsPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [items, setItems] = useState<NotifItem[]>([]);
+  const [items, setItems] = useState<DisplayItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   function handleBack() {
@@ -89,224 +73,45 @@ export function NotificationsPage() {
     if (!user) return;
 
     async function load() {
-      // 我的 artist profile + artwork ids（for likes query）+ username（for @ 提及）
-      const [{ data: ap }, { data: me }] = await Promise.all([
-        supabase
-          .from("artist_profiles")
-          .select("id")
-          .eq("user_id", user!.id)
-          .maybeSingle(),
-        supabase
-          .from("users")
-          .select("username")
-          .eq("id", user!.id)
-          .maybeSingle(),
-      ]);
-      const myUsername: string | null = me?.username?.toLowerCase() ?? null;
+      const { data: ap } = await supabase
+        .from("artist_profiles")
+        .select("id")
+        .eq("user_id", user!.id)
+        .maybeSingle();
 
-      let myArtworkIds: number[] = [];
-      if (ap?.id) {
-        const { data: artworks } = await supabase
-          .from("artworks")
-          .select("id")
-          .eq("artist_id", ap.id)
-          .is("deleted_at", null);
-        myArtworkIds = (artworks ?? []).map((a: any) => a.id);
-      }
-
-      const commentSelect = "id, artwork_id, user_id, content, created_at, users:user_id(id, username, name, avatar_url), artworks(id, title)";
-
-      const [followsRes, likesRes, receivedCommissionsRes, sentCommissionsRes, commentsRes, mentionsRes, commentLikesRes] = await Promise.all([
-        supabase
-          .from("follows")
-          .select("follower_id, created_at, users:follower_id(id, username, name, avatar_url)")
-          .eq("following_id", user!.id)
-          .order("created_at", { ascending: false })
-          .limit(30),
-
-        myArtworkIds.length > 0
-          ? supabase
-              .from("likes")
-              .select("user_id, artwork_id, created_at, users:user_id(id, username, name, avatar_url), artworks(id, title)")
-              .in("artwork_id", myArtworkIds)
-              .order("created_at", { ascending: false })
-              .limit(30)
-          : Promise.resolve({ data: [], error: null }),
+      const commissionSelect = "id, org_name, title, draft_due_date, final_due_date";
+      const [rows, receivedRes, sentRes] = await Promise.all([
+        fetchNotifications(user!.id).catch((err) => { console.error(err); return [] as NotificationRow[]; }),
 
         ap?.id
           ? supabase
               .from("commission_requests")
-              .select("id, client_id, artist_id, org_name, title, status, draft_due_date, final_due_date, created_at, updated_at, client:users!commission_requests_client_id_fkey(id, username, name, avatar_url)")
+              .select(`${commissionSelect}, client:users!commission_requests_client_id_fkey(username, name, avatar_url)`)
               .eq("artist_id", ap.id)
-              .order("created_at", { ascending: false })
-              .limit(30)
+              .in("status", ["accepted", "in_progress"])
           : Promise.resolve({ data: [], error: null }),
 
         supabase
           .from("commission_requests")
-          .select("id, client_id, artist_id, org_name, title, status, draft_due_date, final_due_date, created_at, updated_at, artist:artist_profiles!commission_requests_artist_id_fkey(id, users!artist_profiles_user_id_fkey(id, username, name, avatar_url))")
+          .select(`${commissionSelect}, artist:artist_profiles!commission_requests_artist_id_fkey(users!artist_profiles_user_id_fkey(username, name, avatar_url))`)
           .eq("client_id", user!.id)
-          .order("updated_at", { ascending: false })
-          .limit(30),
-
-        // 別人在我的作品留言
-        myArtworkIds.length > 0
-          ? supabase
-              .from("artwork_comments")
-              .select(commentSelect)
-              .in("artwork_id", myArtworkIds)
-              .neq("user_id", user!.id)
-              .order("created_at", { ascending: false })
-              .limit(30)
-          : Promise.resolve({ data: [], error: null }),
-
-        // 留言裡 @我 — ilike 先粗篩，下面再用 parseMentions 確認是完整的 username
-        myUsername
-          ? supabase
-              .from("artwork_comments")
-              .select(commentSelect)
-              .ilike("content", `%@${myUsername}%`)
-              .neq("user_id", user!.id)
-              .order("created_at", { ascending: false })
-              .limit(30)
-          : Promise.resolve({ data: [], error: null }),
-
-        // 別人對我的留言按愛心
-        supabase
-          .from("artwork_comment_likes")
-          .select("user_id, comment_id, created_at, users:user_id(id, username, name, avatar_url), artwork_comments!inner(user_id, artwork_id, content, artworks(id, title))")
-          .eq("artwork_comments.user_id", user!.id)
-          .neq("user_id", user!.id)
-          .order("created_at", { ascending: false })
-          .limit(30),
+          .in("status", ["accepted", "in_progress"]),
       ]);
 
-      const notifs: NotifItem[] = [];
-
-      (followsRes.data ?? []).forEach((f: any) => {
-        if (!f.users) return;
-        notifs.push({
-          id: `follow-${f.follower_id}-${f.created_at}`,
-          type: "follow",
-          userId: f.follower_id,
-          username: f.users.username,
-          name: f.users.name,
-          avatar_url: f.users.avatar_url,
-          created_at: f.created_at,
-        });
-      });
-
-      (likesRes.data ?? []).forEach((l: any) => {
-        if (!l.users) return;
-        notifs.push({
-          id: `like-${l.user_id}-${l.artwork_id}`,
-          type: "like",
-          userId: l.user_id,
-          username: l.users.username,
-          name: l.users.name,
-          avatar_url: l.users.avatar_url,
-          artworkId: l.artwork_id,
-          artworkTitle: l.artworks?.title ?? null,
-          created_at: l.created_at,
-        });
-      });
-
-      // 同一則留言同時是「留言在我的作品」又「@我」時，只顯示成 @我
-      const mentionedCommentIds = new Set<number>();
-      (mentionsRes.data ?? []).forEach((c: any) => {
-        if (!c.users) return;
-        const mentionsMe = parseMentions(c.content).some(
-          (segment) => segment.type === "mention" && segment.username === myUsername,
-        );
-        if (!mentionsMe) return;
-        mentionedCommentIds.add(c.id);
-        notifs.push({
-          id: `mention-${c.id}`,
-          type: "mention",
-          userId: c.user_id,
-          username: c.users.username,
-          name: c.users.name,
-          avatar_url: c.users.avatar_url,
-          artworkId: c.artwork_id,
-          artworkTitle: c.artworks?.title ?? null,
-          preview: c.content,
-          created_at: c.created_at,
-        });
-      });
-
-      (commentsRes.data ?? []).forEach((c: any) => {
-        if (!c.users || mentionedCommentIds.has(c.id)) return;
-        notifs.push({
-          id: `comment-${c.id}`,
-          type: "comment",
-          userId: c.user_id,
-          username: c.users.username,
-          name: c.users.name,
-          avatar_url: c.users.avatar_url,
-          artworkId: c.artwork_id,
-          artworkTitle: c.artworks?.title ?? null,
-          preview: c.content,
-          created_at: c.created_at,
-        });
-      });
-
-      (commentLikesRes.data ?? []).forEach((l: any) => {
-        if (!l.users || !l.artwork_comments) return;
-        notifs.push({
-          id: `comment-like-${l.user_id}-${l.comment_id}`,
-          type: "comment_like",
-          userId: l.user_id,
-          username: l.users.username,
-          name: l.users.name,
-          avatar_url: l.users.avatar_url,
-          artworkId: l.artwork_comments.artwork_id,
-          artworkTitle: l.artwork_comments.artworks?.title ?? null,
-          preview: l.artwork_comments.content,
-          created_at: l.created_at,
-        });
-      });
-
-      (receivedCommissionsRes.data ?? []).forEach((commission: any) => {
-        const client = commission.client;
-        notifs.push({
-          id: `commission-received-${commission.id}`,
-          type: "commission",
-          commissionId: commission.id,
-          role: "received",
-          counterpartName: client?.name ?? client?.username ?? "委託人",
-          avatar_url: client?.avatar_url ?? null,
-          orgName: commission.org_name ?? commission.title ?? "未命名委託",
-          status: commission.status,
-          created_at: commission.created_at,
-        });
-      });
-
-      (sentCommissionsRes.data ?? [])
-        .filter((commission: any) => commission.status !== "pending")
-        .forEach((commission: any) => {
-          const artistUser = commission.artist?.users;
-          notifs.push({
-            id: `commission-sent-${commission.id}-${commission.status}`,
-            type: "commission",
-            commissionId: commission.id,
-            role: "sent",
-            counterpartName: artistUser?.name ?? artistUser?.username ?? "創作者",
-            avatar_url: artistUser?.avatar_url ?? null,
-            orgName: commission.org_name ?? commission.title ?? "未命名委託",
-            status: commission.status,
-            created_at: commission.updated_at ?? commission.created_at,
-          });
-        });
+      const display: DisplayItem[] = rows
+        // 對方帳號被刪除（或軟刪除）就不顯示
+        .filter((row) => row.actor)
+        .map((row) => ({ kind: "notification", key: `n-${row.id}`, createdAt: row.createdAt, row }));
 
       const today = new Date();
       today.setHours(0, 0, 0, 0);
+      const now = new Date().toISOString();
       const deadlineRows = [
-        ...(receivedCommissionsRes.data ?? []).map((commission: any) => ({ commission, role: "received" as const, person: commission.client })),
-        ...(sentCommissionsRes.data ?? []).map((commission: any) => ({ commission, role: "sent" as const, person: commission.artist?.users })),
+        ...(receivedRes.data ?? []).map((commission: any) => ({ commission, role: "received" as const, person: commission.client })),
+        ...(sentRes.data ?? []).map((commission: any) => ({ commission, role: "sent" as const, person: commission.artist?.users })),
       ];
 
       deadlineRows.forEach(({ commission, role, person }) => {
-        if (commission.status !== "accepted" && commission.status !== "in_progress") return;
         const deadlines = [
           { kind: "初稿期限" as const, value: commission.draft_due_date },
           { kind: "最終交件日" as const, value: commission.final_due_date },
@@ -317,28 +122,47 @@ export function NotificationsPage() {
           const dueDate = new Date(year, month - 1, day);
           const daysUntil = Math.round((dueDate.getTime() - today.getTime()) / 86_400_000);
           if (daysUntil < 0 || daysUntil > 7) return;
-          notifs.push({
-            id: `deadline-${commission.id}-${kind}`,
-            type: "deadline",
-            commissionId: commission.id,
-            role,
-            counterpartName: person?.name ?? person?.username ?? (role === "received" ? "委託人" : "創作者"),
-            avatar_url: person?.avatar_url ?? null,
-            orgName: commission.org_name ?? commission.title ?? "未命名委託",
-            deadlineKind: kind,
-            daysUntil,
-            created_at: new Date().toISOString(),
+          display.push({
+            kind: "deadline",
+            key: `deadline-${commission.id}-${kind}`,
+            createdAt: now,
+            item: {
+              id: `deadline-${commission.id}-${kind}`,
+              commissionId: commission.id,
+              role,
+              counterpartName: person?.name ?? person?.username ?? (role === "received" ? "委託人" : "創作者"),
+              avatar_url: person?.avatar_url ?? null,
+              orgName: commission.org_name ?? commission.title ?? "未命名委託",
+              deadlineKind: kind,
+              daysUntil,
+            },
           });
         });
       });
 
-      notifs.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-      setItems(notifs);
+      display.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      setItems(display);
       setLoading(false);
+
+      // 進來看過就全部算已讀；這次畫面上仍保留未讀的底色，讓使用者知道哪些是新的
+      if (rows.some((row) => !row.readAt)) {
+        markAllNotificationsRead(user!.id).catch(console.error);
+      }
     }
 
     load();
   }, [user]);
+
+  function handleClick(entry: DisplayItem) {
+    if (entry.kind === "deadline") {
+      navigate(`/orders?view=${entry.item.role}`);
+      return;
+    }
+    const row = entry.row;
+    if (row.commissionId) navigate(`/orders?view=${row.commissionRole ?? "received"}`);
+    else if (row.artworkId) navigate(`/artwork/${row.artworkId}`);
+    else if (row.actor?.username) navigate(`/creator/${row.actor.username}`);
+  }
 
   return (
     <div className="flex min-h-[70vh] flex-col rounded-2xl bg-[#141414] lg:min-h-[76vh]">
@@ -362,24 +186,28 @@ export function NotificationsPage() {
         ) : items.length === 0 ? (
           <p className="text-center text-gray-600 text-sm mt-8">還沒有通知</p>
         ) : (
-          items.map((item) => {
-            const displayName = item.type === "commission" || item.type === "deadline" ? item.counterpartName : item.name || item.username || "用戶";
+          items.map((entry) => {
+            const unread = entry.kind === "notification" && !entry.row.readAt;
+            const displayName =
+              entry.kind === "deadline"
+                ? entry.item.counterpartName
+                : entry.row.actor?.name || entry.row.actor?.username || "用戶";
+            const avatarUrl = entry.kind === "deadline" ? entry.item.avatar_url : entry.row.actor?.avatarUrl ?? null;
+            const type = entry.kind === "deadline" ? "deadline" : entry.row.type;
 
             return (
               <button
-                key={item.id}
-                onClick={() => {
-                  if (item.type === "commission" || item.type === "deadline") navigate(`/orders?view=${item.role}`);
-                  else if ("artworkId" in item) navigate(`/artwork/${item.artworkId}`);
-                  else if (item.username) navigate(`/creator/${item.username}`);
-                }}
-                className="w-full flex items-center gap-4 px-5 py-4 hover:bg-white/4 transition-colors text-left"
+                key={entry.key}
+                onClick={() => handleClick(entry)}
+                className={`w-full flex items-center gap-4 px-5 py-4 transition-colors text-left ${
+                  unread ? "bg-white/[0.05] hover:bg-white/8" : "hover:bg-white/4"
+                }`}
               >
                 {/* Avatar + type badge */}
                 <div className="relative flex-shrink-0">
                   <div className="w-12 h-12 rounded-full overflow-hidden border border-white/15 bg-white/10 flex items-center justify-center">
-                    {item.avatar_url ? (
-                      <img src={item.avatar_url} alt={displayName} className="w-full h-full object-cover" />
+                    {avatarUrl ? (
+                      <img src={avatarUrl} alt={displayName} className="w-full h-full object-cover" />
                     ) : (
                       <span className="text-white/40 text-lg font-medium">
                         {displayName[0]?.toUpperCase()}
@@ -387,17 +215,22 @@ export function NotificationsPage() {
                     )}
                   </div>
                   <div className={`absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full flex items-center justify-center border-2 border-[#141414] ${
-                    item.type === "follow" ? "bg-white" : item.type === "comment" ? "bg-emerald-500" : item.type === "mention" ? "bg-fuchsia-500" : item.type === "deadline" ? "bg-amber-500" : item.type === "commission" ? "bg-sky-500" : "bg-red-500"
+                    type === "follow" ? "bg-white"
+                    : type === "comment" ? "bg-emerald-500"
+                    : type === "mention" ? "bg-fuchsia-500"
+                    : type === "deadline" ? "bg-amber-500"
+                    : type === "commission_received" || type === "commission_status" ? "bg-sky-500"
+                    : "bg-red-500"
                   }`}>
-                    {item.type === "deadline"
+                    {type === "deadline"
                       ? <CalendarClock size={10} className="text-white" />
-                      : item.type === "commission"
+                      : type === "commission_received" || type === "commission_status"
                       ? <BriefcaseBusiness size={10} className="text-white" />
-                      : item.type === "follow"
+                      : type === "follow"
                       ? <UserPlus size={9} className="text-white" />
-                      : item.type === "comment"
+                      : type === "comment"
                       ? <MessageCircle size={10} className="text-white" />
-                      : item.type === "mention"
+                      : type === "mention"
                       ? <AtSign size={10} className="text-white" />
                       : <Heart size={9} className="text-white fill-white" />
                     }
@@ -408,44 +241,24 @@ export function NotificationsPage() {
                 <div className="flex-1 min-w-0">
                   <p className="text-white text-sm leading-snug">
                     <span className="font-medium">{displayName}</span>
-                    {item.type === "follow" && (
-                      <span className="text-gray-400"> 追蹤了你</span>
-                    )}
-                    {item.type === "like" && (
+                    {entry.kind === "deadline" ? (
                       <>
-                        <span className="text-gray-400"> 對</span>
-                        <span className="text-white">《{item.artworkTitle || "你的作品"}》</span>
-                        <span className="text-gray-400">按讚</span>
+                        <span className="text-gray-400">《{entry.item.orgName}》的{entry.item.deadlineKind}</span>
+                        <span className="text-amber-200">{entry.item.daysUntil === 0 ? "今天到期" : `剩下 ${entry.item.daysUntil} 天`}</span>
                       </>
-                    )}
-                    {(item.type === "comment" || item.type === "mention" || item.type === "comment_like") && (
-                      <>
-                        <span className="text-gray-400">
-                          {item.type === "comment" ? " 在" : item.type === "mention" ? " 在" : " 喜歡你在"}
-                        </span>
-                        <span className="text-white">《{item.artworkTitle || "作品"}》</span>
-                        <span className="text-gray-400">
-                          {item.type === "comment" ? "留言" : item.type === "mention" ? "的留言提到你" : "的留言"}
-                        </span>
-                      </>
-                    )}
-                    {item.type === "commission" && item.role === "received" && (
-                      <><span className="text-gray-400"> 向你送出新委託</span><span className="text-white">《{item.orgName}》</span></>
-                    )}
-                    {item.type === "commission" && item.role === "sent" && (
-                      <><span className="text-gray-400"> 對</span><span className="text-white">《{item.orgName}》</span><span className="text-gray-400">{commissionStatusText[item.status]}</span></>
-                    )}
-                    {item.type === "deadline" && (
-                      <><span className="text-gray-400">《{item.orgName}》的{item.deadlineKind}</span><span className="text-amber-200">{item.daysUntil === 0 ? "今天到期" : `剩下 ${item.daysUntil} 天`}</span></>
+                    ) : (
+                      <NotificationText row={entry.row} />
                     )}
                   </p>
-                  {"preview" in item && (
-                    <p className="mt-0.5 truncate text-xs text-gray-500">{item.preview}</p>
+                  {entry.kind === "notification" && entry.row.commentPreview && (
+                    <p className="mt-0.5 truncate text-xs text-gray-500">{entry.row.commentPreview}</p>
                   )}
                   <p className="text-gray-600 text-[10px] mt-0.5">
-                    {formatChatTime(item.created_at)}
+                    {entry.kind === "notification" ? formatChatTime(entry.row.createdAt) : "提醒"}
                   </p>
                 </div>
+
+                {unread && <span className="h-2 w-2 flex-shrink-0 rounded-full bg-paper" aria-label="未讀" />}
               </button>
             );
           })
@@ -453,4 +266,34 @@ export function NotificationsPage() {
       </div>
     </div>
   );
+}
+
+function NotificationText({ row }: { row: NotificationRow }) {
+  const artwork = row.artworkTitle || "你的作品";
+  const commission = row.commissionName ?? "委託";
+
+  switch (row.type) {
+    case "follow":
+      return <span className="text-gray-400"> 追蹤了你</span>;
+    case "like":
+      return <><span className="text-gray-400"> 對</span><span className="text-white">《{artwork}》</span><span className="text-gray-400">按讚</span></>;
+    case "comment":
+      return <><span className="text-gray-400"> 在</span><span className="text-white">《{artwork}》</span><span className="text-gray-400">留言</span></>;
+    case "mention":
+      return <><span className="text-gray-400"> 在</span><span className="text-white">《{row.artworkTitle || "作品"}》</span><span className="text-gray-400">的留言提到你</span></>;
+    case "comment_like":
+      return <><span className="text-gray-400"> 喜歡你在</span><span className="text-white">《{row.artworkTitle || "作品"}》</span><span className="text-gray-400">的留言</span></>;
+    case "commission_received":
+      return <><span className="text-gray-400"> 向你送出新委託</span><span className="text-white">《{commission}》</span></>;
+    case "commission_status":
+      if (row.milestone) {
+        return <><span className="text-gray-400"> {milestoneText[row.milestone]}</span><span className="text-white">《{commission}》</span></>;
+      }
+      if (!row.status) return null;
+      return row.commissionRole === "sent"
+        ? <><span className="text-gray-400">{clientSideStatusText[row.status]}</span><span className="text-white">《{commission}》</span></>
+        : <><span className="text-gray-400"> 將</span><span className="text-white">《{commission}》</span><span className="text-gray-400">標記為{artistSideStatusText[row.status]}</span></>;
+    default:
+      return null;
+  }
 }

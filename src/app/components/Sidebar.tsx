@@ -4,6 +4,7 @@ import { Home, ClipboardList, Send, Bell, UserCircle2, Plus, LogIn } from "lucid
 import { supabase } from "../../lib/supabase";
 import { useAuth } from "../../contexts/AuthContext";
 import { CreateMenu } from "./CreateMenu";
+import { useHasUnreadNotifications } from "../../lib/notifications";
 
 const navItems = [
   { to: "/",              icon: Home,          label: "首頁", end: true },
@@ -21,6 +22,7 @@ const navItems = [
 export function Sidebar() {
   const { user } = useAuth();
   const [hasUnread, setHasUnread] = useState(false);
+  const hasUnreadNotifications = useHasUnreadNotifications(user?.id);
 
   useEffect(() => {
     if (!user) {
@@ -74,7 +76,7 @@ export function Sidebar() {
 
       <nav className="mt-10 flex w-full flex-1 flex-col gap-1">
         {navItems.map((item) => (
-          <SidebarNavItem key={item.to} {...item} dot={item.to === "/chat" && hasUnread} />
+          <SidebarNavItem key={item.to} {...item} dot={(item.to === "/chat" && hasUnread) || (item.to === "/notifications" && hasUnreadNotifications)} />
         ))}
       </nav>
 

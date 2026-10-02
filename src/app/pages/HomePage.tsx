@@ -6,6 +6,7 @@ import { useAuth } from "../../contexts/AuthContext";
 import { listOpenCommissions, inquireCommission, type Commission } from "../../lib/commissions";
 import { useLoginGate, LoginGateDialog } from "../components/LoginGate";
 import { ARTWORK_CATEGORIES } from "../../lib/artworkCategories";
+import { useHasUnreadNotifications } from "../../lib/notifications";
 
 interface Artwork {
   id: number;
@@ -55,6 +56,7 @@ interface SearchCreator {
 export function HomePage() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const hasUnreadNotifications = useHasUnreadNotifications(user?.id);
 
   // ── 主資料 ─────────────────────────────────────────────────────────────
   const [artworks, setArtworks]         = useState<Artwork[]>([]);
@@ -399,7 +401,12 @@ export function HomePage() {
           <img src="/logo-mark.svg" alt="Fulfill" className="h-9 w-auto" />
           {user ? (
             <button onClick={() => navigate("/notifications")} aria-label="查看通知" className="-mr-1 grid h-10 w-10 place-items-center rounded-xl text-white/55 transition-colors hover:bg-white/8 hover:text-white active:scale-[0.98]">
-              <Bell size={19} strokeWidth={1.8} />
+              <span className="relative">
+                <Bell size={19} strokeWidth={1.8} />
+                {hasUnreadNotifications && (
+                  <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full border border-black bg-paper" />
+                )}
+              </span>
             </button>
           ) : (
             <div className="flex items-center gap-2">
